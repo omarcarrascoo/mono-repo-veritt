@@ -1,0 +1,1 @@
+export interface BaseApiListResponse<T> extends Array<T> {}

@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  SUPERVISOR
+  OPERATOR
+  VERITT_STAFF
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  INACTIVE
+}
+
+enum OnboardingStatus {
+  DRAFT
+  IN_PROGRESS
+  READY
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PayrollFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  SEMIMONTHLY
+  MONTHLY
+}
+
+enum SystemAccessLevel {
+  NONE
+  OPERATOR
+  SUPERVISOR
+  ADMIN
+}
+
+model User {
+  id           String               @id @default(uuid())
+  email        String               @unique
+  passwordHash String
+  fullName     String
+  status       UserStatus           @default(ACTIVE)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  memberships  BusinessMembership[]
+  businesses   Business[]           @relation("BusinessCreator")
+}
+
+model Business {
+  id                       String               @id @default(uuid())
+  name                     String
+  slug                     String               @unique
+  businessType             String?
+  description              String?
+  timezone                 String
+  city                     String?
+  state                    String?
+  operationalScheduleJson  Json?
+  operationalDayCutoffHour Int
+  createdByUserId          String
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  createdBy                User                 @relation("BusinessCreator", fields: [createdByUserId], references: [id])
+  memberships              BusinessMembership[]
+  onboarding               BusinessOnboarding?
+  staffProfiles            StaffProfile[]
+}
+
+model BusinessMembership {
+  id              String           @id @default(uuid())
+  businessId      String
+  userId          String
+  role            MembershipRole
+  status          MembershipStatus @default(ACTIVE)
+  invitedByUserId String?
+  joinedAt        DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  business        Business         @relation(fields: [businessId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
+
+  @@unique([businessId, userId])
+}
+
+model BusinessOnboarding {
+  id                   String           @id @default(uuid())
+  businessId           String           @unique
+  status               OnboardingStatus @default(DRAFT)
+  currentStep          String           @default("general_info")
+  completionPercentage Int              @default(0)
+  generalInfoCompleted Boolean          @default(false)
+  staffCompleted       Boolean          @default(false)
+  productsCompleted    Boolean          @default(false)
+  ingredientsCompleted Boolean          @default(false)
+  recipesCompleted     Boolean          @default(false)
+  fixedCostsCompleted  Boolean          @default(false)
+  areasCompleted       Boolean          @default(false)
+  providersCompleted   Boolean          @default(false)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  business             Business         @relation(fields: [businessId], references: [id])
+}
+
+model StaffProfile {
+  id                String            @id @default(uuid())
+  businessId        String
+  userId            String?           @unique
+  fullName          String
+  phoneNumber       String?
+  email             String?
+  operationalRole   String
+  assignedAreasJson Json?
+  shift             String?
+  systemAccessLevel SystemAccessLevel @default(NONE)
+  username          String?
+  status            StaffStatus       @default(ACTIVE)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  business          Business          @relation(fields: [businessId], references: [id])
+  compensation      StaffCompensation?
+
+  @@unique([businessId, username])
+}
+
+model StaffCompensation {
+  id                   String           @id @default(uuid())
+  staffProfileId       String           @unique
+  salaryAmount         Decimal          @db.Decimal(10, 2)
+  salaryCurrency       String           @default("MXN")
+  payrollFrequency     PayrollFrequency
+  weeklyPayDay         Int?
+  monthlyPayDay        Int?
+  semimonthlyFirstDay  Int?
+  semimonthlySecondDay Int?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  staffProfile         StaffProfile     @relation(fields: [staffProfileId], references: [id])
+}
