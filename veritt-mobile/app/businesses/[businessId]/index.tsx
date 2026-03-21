@@ -199,6 +199,11 @@ export default function BusinessDetailScreen() {
 
         <View className="gap-3.5">
           <VrittButton
+            label="Ver nómina"
+            onPress={() => router.push(`/businesses/${business.id}/payroll`)}
+          />
+
+          <VrittButton
             label="Administrar empleados"
             onPress={() => router.push(`/businesses/${business.id}/staff`)}
           />

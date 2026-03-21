@@ -20,6 +20,11 @@ import { VrittLoader } from '@/components/ui/VrittLoader';
 import { staffApi } from '@/api/modules/staff.api';
 import { getApiErrorMessage } from '@/utils/error.utils';
 import {
+  getPayrollFrequencyHint,
+  isSemimonthlyAnchorDate,
+  isValidPayrollDateInput,
+} from '@/lib/payroll-utils';
+import {
   CreateStaffCompensationDto,
   PayrollFrequency,
   StaffProfile,
@@ -33,7 +38,11 @@ const SHIFT_OPTIONS = [
   { label: 'Mixto', value: 'Mixto' },
 ];
 
-const ACCESS_LEVEL_OPTIONS: { label: string; value: SystemAccessLevel }[] = [
+const ACCESS_LEVEL_OPTIONS: {
+  label: string;
+  value: SystemAccessLevel;
+  hint?: string;
+}[] = [
   { label: 'Sin acceso', value: 'NONE', hint: 'Solo perfil operativo' },
   { label: 'Operador', value: 'OPERATOR', hint: 'Acceso básico' },
   { label: 'Supervisor', value: 'SUPERVISOR', hint: 'Más control operativo' },
@@ -43,25 +52,10 @@ const ACCESS_LEVEL_OPTIONS: { label: string; value: SystemAccessLevel }[] = [
 const PAYROLL_OPTIONS: { label: string; value: PayrollFrequency }[] = [
   { label: 'Diario', value: 'DAILY' },
   { label: 'Semanal', value: 'WEEKLY' },
-  { label: 'Quincenal', value: 'BIWEEKLY' },
-  { label: 'Dos veces al mes', value: 'SEMIMONTHLY' },
+  { label: 'Cada 14 días', value: 'BIWEEKLY' },
+  { label: 'Quincenal (15 y último día)', value: 'SEMIMONTHLY' },
   { label: 'Mensual', value: 'MONTHLY' },
 ];
-
-const WEEK_DAYS = [
-  { label: 'Lunes', value: '1' },
-  { label: 'Martes', value: '2' },
-  { label: 'Miércoles', value: '3' },
-  { label: 'Jueves', value: '4' },
-  { label: 'Viernes', value: '5' },
-  { label: 'Sábado', value: '6' },
-  { label: 'Domingo', value: '7' },
-];
-
-const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({
-  label: `Día ${i + 1}`,
-  value: String(i + 1),
-}));
 
 function slugUsername(value: string) {
   return value
@@ -96,16 +90,11 @@ export default function EditStaffScreen() {
   const [salaryAmount, setSalaryAmount] = useState('');
   const [salaryCurrency, setSalaryCurrency] = useState('MXN');
   const [payrollFrequency, setPayrollFrequency] = useState<PayrollFrequency>('MONTHLY');
-  const [weeklyPayDay, setWeeklyPayDay] = useState('5');
-  const [monthlyPayDay, setMonthlyPayDay] = useState('15');
-  const [semimonthlyFirstDay, setSemimonthlyFirstDay] = useState('15');
-  const [semimonthlySecondDay, setSemimonthlySecondDay] = useState('30');
+  const [firstPaymentDate, setFirstPaymentDate] = useState('');
   const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
 
   const hasSystemAccess = systemAccessLevel !== 'NONE';
-  const shouldShowWeekly = payrollFrequency === 'WEEKLY' || payrollFrequency === 'BIWEEKLY';
-  const shouldShowMonthly = payrollFrequency === 'MONTHLY';
-  const shouldShowSemimonthly = payrollFrequency === 'SEMIMONTHLY';
+  const payrollHint = getPayrollFrequencyHint(payrollFrequency);
 
   useEffect(() => {
     const loadStaff = async () => {
@@ -130,10 +119,7 @@ export default function EditStaffScreen() {
           setSalaryAmount(String(data.compensation.salaryAmount ?? ''));
           setSalaryCurrency(data.compensation.salaryCurrency || 'MXN');
           setPayrollFrequency(data.compensation.payrollFrequency);
-          setWeeklyPayDay(String(data.compensation.weeklyPayDay ?? 5));
-          setMonthlyPayDay(String(data.compensation.monthlyPayDay ?? 15));
-          setSemimonthlyFirstDay(String(data.compensation.semimonthlyFirstDay ?? 15));
-          setSemimonthlySecondDay(String(data.compensation.semimonthlySecondDay ?? 30));
+          setFirstPaymentDate(data.compensation.firstPaymentDate?.slice(0, 10) || '');
         }
       } catch (error) {
         Alert.alert('Error', getApiErrorMessage(error, 'No pudimos cargar el empleado.'));
@@ -147,31 +133,20 @@ export default function EditStaffScreen() {
 
   const compensationPayload = useMemo<CreateStaffCompensationDto | undefined>(() => {
     if (!salaryAmount.trim()) return undefined;
+    if (!firstPaymentDate.trim()) return undefined;
 
     const parsedSalary = Number(salaryAmount);
-    if (Number.isNaN(parsedSalary)) return undefined;
+    if (Number.isNaN(parsedSalary) || !isValidPayrollDateInput(firstPaymentDate)) {
+      return undefined;
+    }
 
     return {
       salaryAmount: parsedSalary,
       salaryCurrency,
       payrollFrequency,
-      weeklyPayDay: shouldShowWeekly ? Number(weeklyPayDay) : undefined,
-      monthlyPayDay: shouldShowMonthly ? Number(monthlyPayDay) : undefined,
-      semimonthlyFirstDay: shouldShowSemimonthly ? Number(semimonthlyFirstDay) : undefined,
-      semimonthlySecondDay: shouldShowSemimonthly ? Number(semimonthlySecondDay) : undefined,
+      firstPaymentDate: firstPaymentDate.trim(),
     };
-  }, [
-    salaryAmount,
-    salaryCurrency,
-    payrollFrequency,
-    shouldShowWeekly,
-    shouldShowMonthly,
-    shouldShowSemimonthly,
-    weeklyPayDay,
-    monthlyPayDay,
-    semimonthlyFirstDay,
-    semimonthlySecondDay,
-  ]);
+  }, [salaryAmount, salaryCurrency, payrollFrequency, firstPaymentDate]);
 
   const handleAccessLevelChange = (value: SystemAccessLevel) => {
     setSystemAccessLevel(value);
@@ -199,8 +174,36 @@ export default function EditStaffScreen() {
       return;
     }
 
+    if (salaryAmount.trim() && !firstPaymentDate.trim()) {
+      Alert.alert(
+        'Falta primer pago',
+        'Indica la fecha en la que debe ocurrir el primer pago de este empleado.'
+      );
+      return;
+    }
+
+    if (firstPaymentDate.trim() && !isValidPayrollDateInput(firstPaymentDate.trim())) {
+      Alert.alert('Fecha inválida', 'Usa el formato YYYY-MM-DD para el primer pago.');
+      return;
+    }
+
+    if (
+      salaryAmount.trim() &&
+      payrollFrequency === 'SEMIMONTHLY' &&
+      !isSemimonthlyAnchorDate(firstPaymentDate.trim())
+    ) {
+      Alert.alert(
+        'Fecha inválida para quincena',
+        'Para nómina quincenal el primer pago debe ser el día 15 o el último día del mes.'
+      );
+      return;
+    }
+
     if (salaryAmount.trim() && !compensationPayload) {
-      Alert.alert('Dato inválido', 'El salario debe ser numérico.');
+      Alert.alert(
+        'Dato inválido',
+        'Revisa que el salario sea numérico y que la fecha del primer pago sea válida.'
+      );
       return;
     }
 
@@ -384,43 +387,24 @@ export default function EditStaffScreen() {
                 disabled={isSubmitting}
               />
 
-              {shouldShowWeekly ? (
-                <VrittSelect
-                  label="Día de pago"
-                  value={weeklyPayDay}
-                  options={WEEK_DAYS}
-                  onChange={setWeeklyPayDay}
-                  disabled={isSubmitting}
-                />
-              ) : null}
+              <VrittInput
+                label="Primer pago"
+                placeholder="2026-03-31"
+                value={firstPaymentDate}
+                onChangeText={setFirstPaymentDate}
+                autoCapitalize="none"
+                keyboardType="numbers-and-punctuation"
+                editable={!isSubmitting}
+              />
 
-              {shouldShowMonthly ? (
-                <VrittSelect
-                  label="Día del mes para pagar"
-                  value={monthlyPayDay}
-                  options={MONTH_DAYS}
-                  onChange={setMonthlyPayDay}
-                  disabled={isSubmitting}
-                />
-              ) : null}
+              <Text className="text-[13px] leading-[20px] text-veritt-muted">
+                {payrollHint}
+              </Text>
 
-              {shouldShowSemimonthly ? (
-                <>
-                  <VrittSelect
-                    label="Primer día de pago"
-                    value={semimonthlyFirstDay}
-                    options={MONTH_DAYS}
-                    onChange={setSemimonthlyFirstDay}
-                    disabled={isSubmitting}
-                  />
-                  <VrittSelect
-                    label="Segundo día de pago"
-                    value={semimonthlySecondDay}
-                    options={MONTH_DAYS}
-                    onChange={setSemimonthlySecondDay}
-                    disabled={isSubmitting}
-                  />
-                </>
+              {payrollFrequency === 'SEMIMONTHLY' ? (
+                <Text className="text-[13px] leading-[20px] text-veritt-mutedSoft">
+                  Usa una fecha que caiga el día 15 o el último día del mes.
+                </Text>
               ) : null}
             </View>
           </VrittCard>

@@ -13,10 +13,24 @@ const WEEKDAY_LABELS: Record<number, string> = {
 const FREQUENCY_LABELS: Record<PayrollFrequency, string> = {
   DAILY: 'Diario',
   WEEKLY: 'Semanal',
-  BIWEEKLY: 'Quincenal',
-  SEMIMONTHLY: 'Dos veces al mes',
+  BIWEEKLY: 'Cada 14 días',
+  SEMIMONTHLY: 'Quincenal',
   MONTHLY: 'Mensual',
 };
+
+function formatShortDate(value?: string | null) {
+  if (!value) return null;
+
+  try {
+    return new Intl.DateTimeFormat('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
 
 export function formatCurrency(
   amount: number | string,
@@ -51,22 +65,26 @@ export function formatPayroll(compensation?: StaffCompensation | null): string {
   );
 
   const frequency = FREQUENCY_LABELS[compensation.payrollFrequency];
+  const startDateLabel = formatShortDate(compensation.firstPaymentDate);
+  const startSuffix = startDateLabel ? ` · inicia ${startDateLabel}` : '';
 
   switch (compensation.payrollFrequency) {
     case 'DAILY':
-      return `${amount} · ${frequency}`;
+      return `${amount} · ${frequency}${startSuffix}`;
 
     case 'WEEKLY':
+      return `${amount} · ${frequency} · cada ${WEEKDAY_LABELS[compensation.weeklyPayDay ?? 1]}${startSuffix}`;
+
     case 'BIWEEKLY':
-      return `${amount} · ${frequency} · ${WEEKDAY_LABELS[compensation.weeklyPayDay ?? 1]}`;
+      return `${amount} · ${frequency}${startSuffix}`;
 
     case 'MONTHLY':
-      return `${amount} · ${frequency} · día ${compensation.monthlyPayDay ?? '-'}`;
+      return `${amount} · ${frequency} · día ${compensation.monthlyPayDay ?? '-'}${startSuffix}`;
 
     case 'SEMIMONTHLY':
-      return `${amount} · ${frequency} · días ${compensation.semimonthlyFirstDay ?? '-'} y ${compensation.semimonthlySecondDay ?? '-'}`;
+      return `${amount} · ${frequency} · días 15 y último día${startSuffix}`;
 
     default:
-      return `${amount} · ${frequency}`;
+      return `${amount} · ${frequency}${startSuffix}`;
   }
 }

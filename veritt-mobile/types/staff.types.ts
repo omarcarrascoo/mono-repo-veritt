@@ -13,6 +13,7 @@ export interface StaffCompensation {
   salaryAmount: number | string;
   salaryCurrency: string;
   payrollFrequency: PayrollFrequency;
+  firstPaymentDate: string;
   weeklyPayDay?: number | null;
   monthlyPayDay?: number | null;
   semimonthlyFirstDay?: number | null;
@@ -43,6 +44,7 @@ export interface CreateStaffCompensationDto {
   salaryAmount: number;
   salaryCurrency?: string;
   payrollFrequency: PayrollFrequency;
+  firstPaymentDate: string;
   weeklyPayDay?: number;
   monthlyPayDay?: number;
   semimonthlyFirstDay?: number;

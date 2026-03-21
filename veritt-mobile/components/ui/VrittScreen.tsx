@@ -1,5 +1,13 @@
 import React from 'react';
-import { ScrollView, View, ViewProps, ScrollViewProps, StyleSheet } from 'react-native';
+import {
+  ScrollView,
+  View,
+  ViewProps,
+  ScrollViewProps,
+  StyleSheet,
+  StyleProp,
+  ViewStyle,
+} from 'react-native';
 
 import { useIsDesktopWeb } from '@/hooks/useIsDesktopWeb';
 import { VrittWebPanel } from '@/components/ui/VrittWebPanel';
@@ -8,6 +16,7 @@ type VrittScreenProps = {
   children: React.ReactNode;
   scrollable?: boolean;
   contentClassName?: string;
+  contentStyle?: StyleProp<ViewStyle>;
   className?: string;
 } & ViewProps &
   ScrollViewProps;
@@ -16,6 +25,7 @@ export function VrittScreen({
   children,
   scrollable = false,
   contentClassName = '',
+  contentStyle,
   className = '',
   ...props
 }: VrittScreenProps) {
@@ -42,7 +52,10 @@ export function VrittScreen({
           <VrittWebPanel>
             <View
               className="w-full md:max-w-3xl"
-              style={isDesktopWeb ? styles.desktopContent : undefined}
+              style={[
+                isDesktopWeb ? styles.desktopContent : undefined,
+                contentStyle,
+              ]}
             >
               {children}
             </View>
@@ -60,7 +73,10 @@ export function VrittScreen({
       <VrittWebPanel style={styles.desktopFill}>
         <View
           className={`w-full md:max-w-3xl flex-1 ${contentClassName}`}
-          style={isDesktopWeb ? styles.desktopContent : undefined}
+          style={[
+            isDesktopWeb ? styles.desktopContent : undefined,
+            contentStyle,
+          ]}
         >
           {children}
         </View>
