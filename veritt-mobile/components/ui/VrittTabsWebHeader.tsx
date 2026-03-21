@@ -14,6 +14,7 @@ const TAB_ITEMS: {
   { href: '/(tabs)', label: 'Inicio', routeName: 'index' },
   { href: '/(tabs)/businesses', label: 'Negocios', routeName: 'businesses' },
   { href: '/(tabs)/explore', label: 'Explora', routeName: 'explore' },
+  { href: '/(tabs)/profile', label: 'Perfil', routeName: 'profile' },
 ];
 
 function VrittTabsHeaderBrand() {

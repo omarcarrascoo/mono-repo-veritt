@@ -8,7 +8,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   constructor() {
     // 1. Instanciamos el Pool nativo de Node.js
     const pool = new Pool({ 
-      connectionString: process.env.DATABASE_URL 
+      connectionString: process.env.DATABASE_URL || 'postgresql://postgres.jvjhsiyyduuixmowxyis:@Omaloma0202r*@aws-0-us-west-2.pooler.supabase.com:5432/postgres?connect_timeout=30',
     });
     
     // @ts-expect-error: Prisma 7 tiene un desajuste temporal con @types/pg.

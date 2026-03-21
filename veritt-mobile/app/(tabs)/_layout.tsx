@@ -45,7 +45,7 @@ export default function TabsLayout() {
           title: 'Inicio',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'grid' : 'grid-outline'}
+              name={focused ? 'home' : 'home-outline'}
               size={22}
               color={color}
             />
@@ -74,6 +74,20 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'sparkles' : 'sparkles-outline'}
+              size={22}
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Perfil',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'person' : 'person-outline'}
               size={22}
               color={color}
             />

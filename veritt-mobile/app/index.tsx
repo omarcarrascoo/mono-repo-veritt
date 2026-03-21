@@ -1,11 +1,8 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect } from 'expo-router';
-import { useAuthBootstrap } from '@/hooks/useAuthBootstrap';
 import { useAuthStore } from '@/store/auth.store';
 
 export default function IndexScreen() {
-  useAuthBootstrap();
-
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
