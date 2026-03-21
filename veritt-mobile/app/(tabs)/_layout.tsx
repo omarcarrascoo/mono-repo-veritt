@@ -3,10 +3,13 @@ import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth.store';
+import { useIsDesktopWeb } from '@/hooks/useIsDesktopWeb';
+import { VrittTabsWebHeader } from '@/components/ui/VrittTabsWebHeader';
 
 export default function TabsLayout() {
   const isHydrated = useAuthStore((state) => state.isHydrated);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isDesktopWeb = useIsDesktopWeb();
 
   if (!isHydrated) {
     return (
@@ -22,16 +25,19 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
+      screenOptions={({ route }) => ({
+        headerShown: isDesktopWeb,
+        header: isDesktopWeb
+          ? () => <VrittTabsWebHeader activeRouteName={route.name} />
+          : undefined,
         sceneStyle: styles.scene,
-        tabBarShowLabel: true,
-        tabBarStyle: styles.tabBar,
+        tabBarShowLabel: !isDesktopWeb,
+        tabBarStyle: isDesktopWeb ? styles.hiddenTabBar : styles.tabBar,
         tabBarActiveTintColor: '#FFFFFF',
         tabBarInactiveTintColor: '#555555',
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarHideOnKeyboard: true,
-      }}
+      })}
     >
       <Tabs.Screen
         name="index"
@@ -46,7 +52,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-      
+
       <Tabs.Screen
         name="businesses"
         options={{
@@ -74,22 +80,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
-
-
-      <Tabs.Screen
-        name="account"
-        options={{
-          title: 'Cuenta',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'person-circle' : 'person-circle-outline'}
-              size={22}
-              color={color}
-            />
-          ),
-        }}
-      />
     </Tabs>
   );
 }
@@ -103,6 +93,9 @@ const styles = StyleSheet.create({
   },
   scene: {
     backgroundColor: '#000000',
+  },
+  hiddenTabBar: {
+    display: 'none',
   },
   tabBar: {
     position: 'absolute',
