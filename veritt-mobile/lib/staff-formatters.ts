@@ -1,4 +1,5 @@
 import { PayrollFrequency, StaffCompensation } from '@/types/staff.types';
+import { formatPayrollDate } from '@/lib/payroll-utils';
 
 const WEEKDAY_LABELS: Record<number, string> = {
   1: 'Lunes',
@@ -17,20 +18,6 @@ const FREQUENCY_LABELS: Record<PayrollFrequency, string> = {
   SEMIMONTHLY: 'Quincenal',
   MONTHLY: 'Mensual',
 };
-
-function formatShortDate(value?: string | null) {
-  if (!value) return null;
-
-  try {
-    return new Intl.DateTimeFormat('es-MX', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
 
 export function formatCurrency(
   amount: number | string,
@@ -65,7 +52,7 @@ export function formatPayroll(compensation?: StaffCompensation | null): string {
   );
 
   const frequency = FREQUENCY_LABELS[compensation.payrollFrequency];
-  const startDateLabel = formatShortDate(compensation.firstPaymentDate);
+  const startDateLabel = formatPayrollDate(compensation.firstPaymentDate);
   const startSuffix = startDateLabel ? ` · inicia ${startDateLabel}` : '';
 
   switch (compensation.payrollFrequency) {

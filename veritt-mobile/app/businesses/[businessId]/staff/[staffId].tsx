@@ -16,6 +16,7 @@ import { VrittSelect } from '@/components/ui/VrittSelect';
 import { VrittCard } from '@/components/ui/VrittCard';
 import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel';
 import { VrittLoader } from '@/components/ui/VrittLoader';
+import { PayrollDateSelector } from '@/components/staff/PayrollDateSelector';
 
 import { staffApi } from '@/api/modules/staff.api';
 import { getApiErrorMessage } from '@/utils/error.utils';
@@ -23,6 +24,7 @@ import {
   getPayrollFrequencyHint,
   isSemimonthlyAnchorDate,
   isValidPayrollDateInput,
+  normalizePayrollDateInput,
 } from '@/lib/payroll-utils';
 import {
   CreateStaffCompensationDto,
@@ -90,7 +92,9 @@ export default function EditStaffScreen() {
   const [salaryAmount, setSalaryAmount] = useState('');
   const [salaryCurrency, setSalaryCurrency] = useState('MXN');
   const [payrollFrequency, setPayrollFrequency] = useState<PayrollFrequency>('MONTHLY');
-  const [firstPaymentDate, setFirstPaymentDate] = useState('');
+  const [firstPaymentDate, setFirstPaymentDate] = useState(() =>
+    normalizePayrollDateInput('', 'MONTHLY')
+  );
   const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
 
   const hasSystemAccess = systemAccessLevel !== 'NONE';
@@ -119,7 +123,12 @@ export default function EditStaffScreen() {
           setSalaryAmount(String(data.compensation.salaryAmount ?? ''));
           setSalaryCurrency(data.compensation.salaryCurrency || 'MXN');
           setPayrollFrequency(data.compensation.payrollFrequency);
-          setFirstPaymentDate(data.compensation.firstPaymentDate?.slice(0, 10) || '');
+          setFirstPaymentDate(
+            normalizePayrollDateInput(
+              data.compensation.firstPaymentDate?.slice(0, 10) || '',
+              data.compensation.payrollFrequency
+            )
+          );
         }
       } catch (error) {
         Alert.alert('Error', getApiErrorMessage(error, 'No pudimos cargar el empleado.'));
@@ -158,6 +167,11 @@ export default function EditStaffScreen() {
     }
   };
 
+  const handlePayrollFrequencyChange = (value: PayrollFrequency) => {
+    setPayrollFrequency(value);
+    setFirstPaymentDate((current) => normalizePayrollDateInput(current, value));
+  };
+
   const handleSave = async () => {
     if (!businessId || !staffId) return;
 
@@ -177,13 +191,13 @@ export default function EditStaffScreen() {
     if (salaryAmount.trim() && !firstPaymentDate.trim()) {
       Alert.alert(
         'Falta primer pago',
-        'Indica la fecha en la que debe ocurrir el primer pago de este empleado.'
+        'Selecciona la fecha en la que debe ocurrir el primer pago de este empleado.'
       );
       return;
     }
 
     if (firstPaymentDate.trim() && !isValidPayrollDateInput(firstPaymentDate.trim())) {
-      Alert.alert('Fecha inválida', 'Usa el formato YYYY-MM-DD para el primer pago.');
+      Alert.alert('Fecha inválida', 'Selecciona una fecha válida para el primer pago.');
       return;
     }
 
@@ -383,18 +397,15 @@ export default function EditStaffScreen() {
                 label="Frecuencia de pago"
                 value={payrollFrequency}
                 options={PAYROLL_OPTIONS}
-                onChange={setPayrollFrequency}
+                onChange={handlePayrollFrequencyChange}
                 disabled={isSubmitting}
               />
 
-              <VrittInput
-                label="Primer pago"
-                placeholder="2026-03-31"
+              <PayrollDateSelector
                 value={firstPaymentDate}
-                onChangeText={setFirstPaymentDate}
-                autoCapitalize="none"
-                keyboardType="numbers-and-punctuation"
-                editable={!isSubmitting}
+                payrollFrequency={payrollFrequency}
+                onChange={setFirstPaymentDate}
+                disabled={isSubmitting}
               />
 
               <Text className="text-[13px] leading-[20px] text-veritt-muted">
