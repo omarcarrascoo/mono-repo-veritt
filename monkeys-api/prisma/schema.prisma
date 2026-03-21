@@ -45,6 +45,24 @@ enum PayrollFrequency {
   MONTHLY
 }
 
+enum PayrollPaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  SKIPPED
+  CANCELED
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
+
+enum NotificationType {
+  PAYROLL_DUE
+  PAYROLL_OVERDUE
+}
+
 enum SystemAccessLevel {
   NONE
   OPERATOR
@@ -82,6 +100,8 @@ model Business {
   memberships              BusinessMembership[]
   onboarding               BusinessOnboarding?
   staffProfiles            StaffProfile[]
+  payrollPayments          PayrollPayment[]
+  notifications            Notification[]
 }
 
 model BusinessMembership {
@@ -137,6 +157,8 @@ model StaffProfile {
 
   business          Business          @relation(fields: [businessId], references: [id])
   compensation      StaffCompensation?
+  compensationHistory StaffCompensationHistory[]
+  payrollPayments   PayrollPayment[]
 
   @@unique([businessId, username])
 }
@@ -147,6 +169,7 @@ model StaffCompensation {
   salaryAmount         Decimal          @db.Decimal(10, 2)
   salaryCurrency       String           @default("MXN")
   payrollFrequency     PayrollFrequency
+  firstPaymentDate     DateTime         @db.Date
   weeklyPayDay         Int?
   monthlyPayDay        Int?
   semimonthlyFirstDay  Int?
@@ -155,4 +178,71 @@ model StaffCompensation {
   updatedAt            DateTime         @updatedAt
 
   staffProfile         StaffProfile     @relation(fields: [staffProfileId], references: [id])
+}
+
+model StaffCompensationHistory {
+  id                   String           @id @default(uuid())
+  staffProfileId       String
+  salaryAmount         Decimal          @db.Decimal(10, 2)
+  salaryCurrency       String           @default("MXN")
+  payrollFrequency     PayrollFrequency
+  firstPaymentDate     DateTime         @db.Date
+  weeklyPayDay         Int?
+  monthlyPayDay        Int?
+  semimonthlyFirstDay  Int?
+  semimonthlySecondDay Int?
+  effectiveFrom        DateTime         @default(now())
+  createdByUserId      String?
+  changeReason         String?
+  createdAt            DateTime         @default(now())
+
+  staffProfile         StaffProfile     @relation(fields: [staffProfileId], references: [id])
+
+  @@index([staffProfileId, effectiveFrom])
+}
+
+model PayrollPayment {
+  id               String               @id @default(uuid())
+  businessId       String
+  staffProfileId   String
+  amount           Decimal              @db.Decimal(10, 2)
+  currency         String               @default("MXN")
+  payrollFrequency PayrollFrequency
+  dueDate          DateTime             @db.Date
+  status           PayrollPaymentStatus @default(PENDING)
+  paidAt           DateTime?
+  paidByUserId     String?
+  notes            String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  business         Business             @relation(fields: [businessId], references: [id])
+  staffProfile     StaffProfile         @relation(fields: [staffProfileId], references: [id])
+
+  @@unique([staffProfileId, dueDate])
+  @@index([businessId, dueDate, status])
+  @@index([staffProfileId, dueDate])
+}
+
+model Notification {
+  id           String             @id @default(uuid())
+  businessId   String
+  type         NotificationType
+  title        String
+  body         String
+  status       NotificationStatus @default(UNREAD)
+  dedupeKey    String             @unique
+  resourceType String?
+  resourceId   String?
+  scheduledFor DateTime?          @db.Date
+  readAt       DateTime?
+  readByUserId String?
+  metadataJson Json?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  business     Business           @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, status, createdAt])
+  @@index([resourceType, resourceId])
 }

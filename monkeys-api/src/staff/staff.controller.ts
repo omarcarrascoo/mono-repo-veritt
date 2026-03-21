@@ -36,6 +36,15 @@ export class StaffController {
     return this.staffService.getById(businessId, staffId, user.id);
   }
 
+  @Get(':staffId/compensation-history')
+  getCompensationHistory(
+    @Param('businessId') businessId: string,
+    @Param('staffId') staffId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.staffService.listCompensationHistory(businessId, staffId, user.id);
+  }
+
   @Patch(':staffId')
   update(
     @Param('businessId') businessId: string,

@@ -2,6 +2,29 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { deriveScheduleFields } from '../payroll/utils/payroll-schedule.utils';
+
+function mapCompensationData(dto: NonNullable<CreateStaffDto['compensation']>) {
+  const derivedSchedule = deriveScheduleFields({
+    payrollFrequency: dto.payrollFrequency,
+    firstPaymentDate: dto.firstPaymentDate!,
+    weeklyPayDay: dto.weeklyPayDay,
+    monthlyPayDay: dto.monthlyPayDay,
+    semimonthlyFirstDay: dto.semimonthlyFirstDay,
+    semimonthlySecondDay: dto.semimonthlySecondDay,
+  });
+
+  return {
+    salaryAmount: dto.salaryAmount,
+    salaryCurrency: dto.salaryCurrency ?? 'MXN',
+    payrollFrequency: dto.payrollFrequency,
+    firstPaymentDate: new Date(`${derivedSchedule.firstPaymentDate}T00:00:00.000Z`),
+    weeklyPayDay: derivedSchedule.weeklyPayDay,
+    monthlyPayDay: derivedSchedule.monthlyPayDay,
+    semimonthlyFirstDay: derivedSchedule.semimonthlyFirstDay,
+    semimonthlySecondDay: derivedSchedule.semimonthlySecondDay,
+  };
+}
 
 @Injectable()
 export class StaffRepository {
@@ -33,13 +56,7 @@ export class StaffRepository {
         await tx.staffCompensation.create({
           data: {
             staffProfileId: staff.id,
-            salaryAmount: dto.compensation.salaryAmount,
-            salaryCurrency: dto.compensation.salaryCurrency ?? 'MXN',
-            payrollFrequency: dto.compensation.payrollFrequency,
-            weeklyPayDay: dto.compensation.weeklyPayDay,
-            monthlyPayDay: dto.compensation.monthlyPayDay,
-            semimonthlyFirstDay: dto.compensation.semimonthlyFirstDay,
-            semimonthlySecondDay: dto.compensation.semimonthlySecondDay,
+            ...mapCompensationData(dto.compensation),
           },
         });
       }
@@ -91,27 +108,15 @@ export class StaffRepository {
       });
 
       if (dto.compensation) {
+        const compensationData = mapCompensationData(dto.compensation);
+
         await tx.staffCompensation.upsert({
           where: { staffProfileId: staffId },
           create: {
             staffProfileId: staffId,
-            salaryAmount: dto.compensation.salaryAmount,
-            salaryCurrency: dto.compensation.salaryCurrency ?? 'MXN',
-            payrollFrequency: dto.compensation.payrollFrequency,
-            weeklyPayDay: dto.compensation.weeklyPayDay,
-            monthlyPayDay: dto.compensation.monthlyPayDay,
-            semimonthlyFirstDay: dto.compensation.semimonthlyFirstDay,
-            semimonthlySecondDay: dto.compensation.semimonthlySecondDay,
+            ...compensationData,
           },
-          update: {
-            salaryAmount: dto.compensation.salaryAmount,
-            salaryCurrency: dto.compensation.salaryCurrency ?? 'MXN',
-            payrollFrequency: dto.compensation.payrollFrequency,
-            weeklyPayDay: dto.compensation.weeklyPayDay,
-            monthlyPayDay: dto.compensation.monthlyPayDay,
-            semimonthlyFirstDay: dto.compensation.semimonthlyFirstDay,
-            semimonthlySecondDay: dto.compensation.semimonthlySecondDay,
-          },
+          update: compensationData,
         });
       }
 
@@ -119,6 +124,18 @@ export class StaffRepository {
         where: { id: staffId },
         include: { compensation: true },
       });
+    });
+  }
+
+  listCompensationHistory(businessId: string, staffId: string) {
+    return this.prisma.staffCompensationHistory.findMany({
+      where: {
+        staffProfileId: staffId,
+        staffProfile: {
+          businessId,
+        },
+      },
+      orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }],
     });
   }
 }

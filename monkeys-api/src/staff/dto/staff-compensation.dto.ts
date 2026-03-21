@@ -1,4 +1,5 @@
 import {
+  IsDateString,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -17,6 +18,7 @@ export enum PayrollFrequencyDto {
 
 export class StaffCompensationDto {
   @IsNumber()
+  @Min(0.01)
   salaryAmount: number;
 
   @IsOptional()
@@ -25,6 +27,10 @@ export class StaffCompensationDto {
 
   @IsEnum(PayrollFrequencyDto)
   payrollFrequency: PayrollFrequencyDto;
+
+  @IsOptional()
+  @IsDateString()
+  firstPaymentDate?: string;
 
   @IsOptional()
   @IsNumber()
