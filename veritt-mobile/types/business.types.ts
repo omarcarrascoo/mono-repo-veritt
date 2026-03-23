@@ -10,7 +10,11 @@ export interface Business {
   name: string;
   slug: string;
   businessType: BusinessType;
+  description?: string;
   timezone: string;
+  city?: string;
+  state?: string;
+  operationalScheduleJson?: Record<string, any>;
   operationalDayCutoffHour: number;
   createdAt?: string;
   updatedAt?: string;
