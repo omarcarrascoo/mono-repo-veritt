@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { BusinessesService } from './businesses.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -21,7 +29,10 @@ export class BusinessesController {
   }
 
   @Get(':businessId')
-  findOne(@Param('businessId') businessId: string, @CurrentUser() user: { id: string }) {
+  findOne(
+    @Param('businessId') businessId: string,
+    @CurrentUser() user: { id: string },
+  ) {
     return this.businessesService.findOne(businessId, user.id);
   }
 

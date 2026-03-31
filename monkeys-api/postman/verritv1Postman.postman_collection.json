@@ -1,0 +1,1215 @@
+{
+  "info": {
+    "name": "verritv1Postman",
+    "description": "Coleccion Postman para probar la API completa de Veritt v1. Incluye auth, businesses, memberships, onboarding, staff, payroll, notifications e inventory con variables automaticas para token e IDs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "ownerEmail", "value": "owner@veritt.app" },
+    { "key": "ownerPassword", "value": "password123" },
+    { "key": "ownerFullName", "value": "Veritt Owner" },
+    { "key": "adminEmail", "value": "admin@veritt.app" },
+    { "key": "adminPassword", "value": "password123" },
+    { "key": "adminFullName", "value": "Veritt Admin" },
+    { "key": "ownerUserId", "value": "" },
+    { "key": "adminUserId", "value": "" },
+    { "key": "businessId", "value": "" },
+    { "key": "memberId", "value": "" },
+    { "key": "staffId", "value": "" },
+    { "key": "paymentId", "value": "" },
+    { "key": "notificationId", "value": "" },
+    { "key": "locationId", "value": "" },
+    { "key": "warehouseLocationId", "value": "" },
+    { "key": "materialId", "value": "" },
+    { "key": "secondMaterialId", "value": "" },
+    { "key": "directProductId", "value": "" },
+    { "key": "recipeProductId", "value": "" },
+    { "key": "recipeVersionId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00. Health",
+      "item": [
+        {
+          "name": "GET /",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01. Auth",
+      "item": [
+        {
+          "name": "Register Owner",
+          "auth": { "type": "noauth" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.accessToken) { pm.collectionVariables.set('token', jsonData.accessToken); }",
+                  "if (jsonData.user && jsonData.user.id) { pm.collectionVariables.set('ownerUserId', jsonData.user.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\",\n  \"fullName\": \"{{ownerFullName}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Register Admin User",
+          "auth": { "type": "noauth" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.user && jsonData.user.id) { pm.collectionVariables.set('adminUserId', jsonData.user.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"fullName\": \"{{adminFullName}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login Owner",
+          "auth": { "type": "noauth" },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.accessToken) { pm.collectionVariables.set('token', jsonData.accessToken); }",
+                  "if (jsonData.user && jsonData.user.id) { pm.collectionVariables.set('ownerUserId', jsonData.user.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ownerEmail}}\",\n  \"password\": \"{{ownerPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "GET /auth/me",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Users",
+      "item": [
+        {
+          "name": "GET /users/:id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/users/{{ownerUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{ownerUserId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Businesses",
+      "item": [
+        {
+          "name": "Create Business",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('businessId', jsonData.id); }",
+                  "if (jsonData.inventoryLocations && jsonData.inventoryLocations.length > 0) {",
+                  "  pm.collectionVariables.set('locationId', jsonData.inventoryLocations[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Veritt Demo Centro\",\n  \"slug\": \"veritt-demo-centro\",\n  \"businessType\": \"RESTAURANT\",\n  \"description\": \"Sucursal principal con soporte de inventario y produccion\",\n  \"timezone\": \"America/Mexico_City\",\n  \"defaultCurrency\": \"MXN\",\n  \"city\": \"Mexico City\",\n  \"state\": \"CDMX\",\n  \"operationalScheduleJson\": {\n    \"open\": \"09:00\",\n    \"close\": \"23:00\"\n  },\n  \"operationalDayCutoffHour\": 4\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses"]
+            }
+          }
+        },
+        {
+          "name": "GET /businesses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses"]
+            }
+          }
+        },
+        {
+          "name": "GET /businesses/:businessId",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /businesses/:businessId",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Sucursal actualizada desde Postman\",\n  \"city\": \"CDMX\",\n  \"defaultCurrency\": \"MXN\",\n  \"operationalDayCutoffHour\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Memberships",
+      "item": [
+        {
+          "name": "GET /businesses/:businessId/members",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "members"]
+            }
+          }
+        },
+        {
+          "name": "POST /businesses/:businessId/members",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('memberId', jsonData.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "members"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /businesses/:businessId/members/:memberId",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"SUPERVISOR\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/members/{{memberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "members",
+                "{{memberId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Onboarding",
+      "item": [
+        {
+          "name": "GET /businesses/:businessId/onboarding",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/onboarding",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "onboarding"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /businesses/:businessId/onboarding",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"currentStep\": \"products\",\n  \"completionPercentage\": 40,\n  \"generalInfoCompleted\": true,\n  \"staffCompleted\": true,\n  \"productsCompleted\": false,\n  \"ingredientsCompleted\": false,\n  \"recipesCompleted\": false,\n  \"fixedCostsCompleted\": false,\n  \"areasCompleted\": false,\n  \"providersCompleted\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/onboarding",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "onboarding"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Staff",
+      "item": [
+        {
+          "name": "POST /businesses/:businessId/staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('staffId', jsonData.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Juan Perez\",\n  \"operationalRole\": \"Panadero\",\n  \"shift\": \"Morning\",\n  \"assignedAreasJson\": {\n    \"primaryArea\": \"Kitchen\"\n  },\n  \"systemAccessLevel\": \"OPERATOR\",\n  \"username\": \"juan.perez\",\n  \"phoneNumber\": \"+525500000001\",\n  \"email\": \"juan.perez@veritt.app\",\n  \"compensation\": {\n    \"salaryAmount\": 3500,\n    \"salaryCurrency\": \"MXN\",\n    \"payrollFrequency\": \"WEEKLY\",\n    \"firstPaymentDate\": \"2026-04-03\",\n    \"weeklyPayDay\": 5\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "staff"]
+            }
+          }
+        },
+        {
+          "name": "GET /businesses/:businessId/staff",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "staff"]
+            }
+          }
+        },
+        {
+          "name": "GET /businesses/:businessId/staff/:staffId",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/staff/{{staffId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "staff", "{{staffId}}"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /businesses/:businessId/staff/:staffId",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationalRole\": \"Lead Baker\",\n  \"shift\": \"Afternoon\",\n  \"status\": \"ACTIVE\",\n  \"compensation\": {\n    \"salaryAmount\": 3900,\n    \"salaryCurrency\": \"MXN\",\n    \"payrollFrequency\": \"WEEKLY\",\n    \"firstPaymentDate\": \"2026-04-03\",\n    \"weeklyPayDay\": 5\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/staff/{{staffId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "staff", "{{staffId}}"]
+            }
+          }
+        },
+        {
+          "name": "GET /businesses/:businessId/staff/:staffId/compensation-history",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/staff/{{staffId}}/compensation-history",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "staff",
+                "{{staffId}}",
+                "compensation-history"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Payroll",
+      "item": [
+        {
+          "name": "GET /businesses/:businessId/payroll/payments/upcoming",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "var payment = (jsonData.overdue && jsonData.overdue[0]) || (jsonData.dueToday && jsonData.dueToday[0]) || (jsonData.upcoming && jsonData.upcoming[0]);",
+                  "if (payment && payment.id) { pm.collectionVariables.set('paymentId', payment.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/payroll/payments/upcoming",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "payroll",
+                "payments",
+                "upcoming"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /businesses/:businessId/payroll/payments/history",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/payroll/payments/history",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "payroll",
+                "payments",
+                "history"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH /businesses/:businessId/payroll/payments/:paymentId",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"PAID\",\n  \"paidAt\": \"2026-04-03T12:00:00.000Z\",\n  \"notes\": \"Paid from Postman test flow\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/payroll/payments/{{paymentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "payroll",
+                "payments",
+                "{{paymentId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Notifications",
+      "item": [
+        {
+          "name": "GET /notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id) {",
+                  "  pm.collectionVariables.set('notificationId', jsonData[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/notifications?businessId={{businessId}}&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"],
+              "query": [
+                { "key": "businessId", "value": "{{businessId}}" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH /notifications/:notificationId/read",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "{{notificationId}}", "read"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09. Inventory - Locations",
+      "item": [
+        {
+          "name": "GET /businesses/:businessId/inventory/locations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (Array.isArray(jsonData) && jsonData.length > 0) {",
+                  "  var primary = jsonData.find(function(item) { return item.isPrimary; }) || jsonData[0];",
+                  "  if (primary && primary.id) { pm.collectionVariables.set('locationId', primary.id); }",
+                  "  var warehouse = jsonData.find(function(item) { return item.type === 'WAREHOUSE'; });",
+                  "  if (warehouse && warehouse.id) { pm.collectionVariables.set('warehouseLocationId', warehouse.id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/locations",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "inventory", "locations"]
+            }
+          }
+        },
+        {
+          "name": "POST /businesses/:businessId/inventory/locations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('warehouseLocationId', jsonData.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CEDIS Central\",\n  \"type\": \"WAREHOUSE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/locations",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "inventory", "locations"]
+            }
+          }
+        },
+        {
+          "name": "PATCH /businesses/:businessId/inventory/locations/:locationId",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CEDIS Central Actualizado\",\n  \"type\": \"WAREHOUSE\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/locations/{{warehouseLocationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "locations",
+                "{{warehouseLocationId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Inventory - Materials",
+      "item": [
+        {
+          "name": "GET /businesses/:businessId/inventory/materials",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "inventory", "materials"]
+            }
+          }
+        },
+        {
+          "name": "POST Flour Material",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('materialId', jsonData.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Harina\",\n  \"baseUnit\": \"kg\",\n  \"category\": \"Bakery\",\n  \"sku\": \"HAR-001\",\n  \"reorderFrequencyDays\": 3,\n  \"minStock\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "inventory", "materials"]
+            }
+          }
+        },
+        {
+          "name": "POST Water Material",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('secondMaterialId', jsonData.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Agua\",\n  \"baseUnit\": \"l\",\n  \"category\": \"Bakery\",\n  \"sku\": \"AGU-001\",\n  \"reorderFrequencyDays\": 2,\n  \"minStock\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "inventory", "materials"]
+            }
+          }
+        },
+        {
+          "name": "GET /businesses/:businessId/inventory/materials/:materialId",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials/{{materialId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "materials",
+                "{{materialId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH /businesses/:businessId/inventory/materials/:materialId",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"Panaderia\",\n  \"reorderFrequencyDays\": 4,\n  \"minStock\": 12,\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials/{{materialId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "materials",
+                "{{materialId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Material Receipt - Flour",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{warehouseLocationId}}\",\n  \"quantity\": 100,\n  \"unitCost\": 18,\n  \"lotCode\": \"HAR-LOTE-001\",\n  \"receivedAt\": \"2026-04-01T10:00:00.000Z\",\n  \"note\": \"Compra inicial de harina\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials/{{materialId}}/receipts",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "materials",
+                "{{materialId}}",
+                "receipts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Material Receipt - Water",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{warehouseLocationId}}\",\n  \"quantity\": 200,\n  \"unitCost\": 1.5,\n  \"lotCode\": \"AGU-LOTE-001\",\n  \"receivedAt\": \"2026-04-01T10:30:00.000Z\",\n  \"note\": \"Compra inicial de agua\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials/{{secondMaterialId}}/receipts",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "materials",
+                "{{secondMaterialId}}",
+                "receipts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Material Adjustment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{warehouseLocationId}}\",\n  \"direction\": \"OUT\",\n  \"quantity\": 2,\n  \"note\": \"Merma de prueba\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials/{{materialId}}/adjustments",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "materials",
+                "{{materialId}}",
+                "adjustments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Material Transfer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromLocationId\": \"{{warehouseLocationId}}\",\n  \"toLocationId\": \"{{locationId}}\",\n  \"quantity\": 5,\n  \"note\": \"Transferencia de harina a sucursal principal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials/{{materialId}}/transfers",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "materials",
+                "{{materialId}}",
+                "transfers"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Inventory - Products",
+      "item": [
+        {
+          "name": "GET /businesses/:businessId/inventory/products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "inventory", "products"]
+            }
+          }
+        },
+        {
+          "name": "POST Direct Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('directProductId', jsonData.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Refresco Embotellado\",\n  \"type\": \"DIRECT\",\n  \"category\": \"Bebidas\",\n  \"stockUnit\": \"unit\",\n  \"estimatedDailySalesVolume\": 12,\n  \"minStock\": 6\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "inventory", "products"]
+            }
+          }
+        },
+        {
+          "name": "POST Recipe Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('recipeProductId', jsonData.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pan Artesanal\",\n  \"type\": \"RECIPE\",\n  \"category\": \"Panaderia\",\n  \"stockUnit\": \"unit\",\n  \"estimatedDailySalesVolume\": 20,\n  \"minStock\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["businesses", "{{businessId}}", "inventory", "products"]
+            }
+          }
+        },
+        {
+          "name": "GET Direct Product",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{directProductId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{directProductId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Recipe Product",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{recipeProductId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{recipeProductId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Direct Product",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"Bebidas Frias\",\n  \"minStock\": 8,\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{directProductId}}",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{directProductId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Direct Product Price",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 35,\n  \"effectiveFrom\": \"2026-04-01T00:00:00.000Z\",\n  \"changeReason\": \"Precio de venta inicial\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{directProductId}}/prices",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{directProductId}}",
+                "prices"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Direct Product Manual Cost",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"materialCost\": 18,\n  \"directLaborCost\": 0,\n  \"allocatedCifCost\": 0,\n  \"totalCost\": 18,\n  \"effectiveFrom\": \"2026-04-01T00:00:00.000Z\",\n  \"changeReason\": \"Costo base de producto directo\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{directProductId}}/manual-costs",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{directProductId}}",
+                "manual-costs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Direct Product Receipt",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{warehouseLocationId}}\",\n  \"quantity\": 24,\n  \"producedAt\": \"2026-04-01T11:00:00.000Z\",\n  \"materialCost\": 18,\n  \"directLaborCost\": 0,\n  \"allocatedCifCost\": 0,\n  \"totalCost\": 18,\n  \"note\": \"Ingreso inicial de producto directo\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{directProductId}}/receipts",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{directProductId}}",
+                "receipts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Recipe Product Price",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 55,\n  \"effectiveFrom\": \"2026-04-01T00:00:00.000Z\",\n  \"changeReason\": \"Precio inicial pan artesanal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{recipeProductId}}/prices",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{recipeProductId}}",
+                "prices"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Recipe Version",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) { pm.collectionVariables.set('recipeVersionId', jsonData.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"effectiveFrom\": \"2026-04-01T00:00:00.000Z\",\n  \"directLaborCost\": 3,\n  \"allocatedCifCost\": 1.5,\n  \"note\": \"Receta base de pan artesanal\",\n  \"items\": [\n    {\n      \"materialId\": \"{{materialId}}\",\n      \"quantity\": 0.25,\n      \"wastePercent\": 5\n    },\n    {\n      \"materialId\": \"{{secondMaterialId}}\",\n      \"quantity\": 0.1,\n      \"wastePercent\": 0\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{recipeProductId}}/recipe-versions",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{recipeProductId}}",
+                "recipe-versions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Production Batch",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{warehouseLocationId}}\",\n  \"recipeVersionId\": \"{{recipeVersionId}}\",\n  \"quantity\": 10,\n  \"producedAt\": \"2026-04-01T14:00:00.000Z\",\n  \"directLaborCost\": 3,\n  \"allocatedCifCost\": 1.5,\n  \"note\": \"Produccion inicial de pan artesanal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{recipeProductId}}/production-batches",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{recipeProductId}}",
+                "production-batches"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Direct Product Transfer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromLocationId\": \"{{warehouseLocationId}}\",\n  \"toLocationId\": \"{{locationId}}\",\n  \"quantity\": 6,\n  \"note\": \"Transferencia de refresco a sucursal principal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{directProductId}}/transfers",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{directProductId}}",
+                "transfers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Recipe Product Transfer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromLocationId\": \"{{warehouseLocationId}}\",\n  \"toLocationId\": \"{{locationId}}\",\n  \"quantity\": 4,\n  \"note\": \"Transferencia de pan a sucursal principal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{recipeProductId}}/transfers",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{recipeProductId}}",
+                "transfers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Direct Product Adjustment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{locationId}}\",\n  \"direction\": \"OUT\",\n  \"quantity\": 1,\n  \"note\": \"Venta o merma de prueba en sucursal principal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{directProductId}}/adjustments",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{directProductId}}",
+                "adjustments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Recipe Product Adjustment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{locationId}}\",\n  \"direction\": \"OUT\",\n  \"quantity\": 1,\n  \"note\": \"Consumo de prueba de pan artesanal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/products/{{recipeProductId}}/adjustments",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "products",
+                "{{recipeProductId}}",
+                "adjustments"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

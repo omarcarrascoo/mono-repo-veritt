@@ -61,6 +61,10 @@ enum NotificationStatus {
 enum NotificationType {
   PAYROLL_DUE
   PAYROLL_OVERDUE
+  MATERIAL_LOW_STOCK
+  MATERIAL_OUT_OF_STOCK
+  PRODUCT_LOW_STOCK
+  PRODUCT_OUT_OF_STOCK
 }
 
 enum SystemAccessLevel {
@@ -68,6 +72,49 @@ enum SystemAccessLevel {
   OPERATOR
   SUPERVISOR
   ADMIN
+}
+
+enum InventoryLocationType {
+  MAIN
+  WAREHOUSE
+  RESTAURANT
+  KITCHEN
+  OTHER
+}
+
+enum InventoryStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProductType {
+  DIRECT
+  RECIPE
+}
+
+enum InventoryMovementType {
+  OPENING_BALANCE
+  PURCHASE
+  RECEIPT
+  PRODUCTION_IN
+  PRODUCTION_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  SALE
+  RETURN
+  WASTE
+}
+
+enum InventoryLotSourceType {
+  OPENING_BALANCE
+  PURCHASE
+  RECEIPT
+  TRANSFER
+  PRODUCTION
+  ADJUSTMENT
 }
 
 model User {
@@ -89,6 +136,7 @@ model Business {
   businessType             String?
   description              String?
   timezone                 String
+  defaultCurrency          String               @default("MXN")
   city                     String?
   state                    String?
   operationalScheduleJson  Json?
@@ -99,9 +147,301 @@ model Business {
   createdBy                User                 @relation("BusinessCreator", fields: [createdByUserId], references: [id])
   memberships              BusinessMembership[]
   onboarding               BusinessOnboarding?
+  inventoryLocations       InventoryLocation[]
+  materials                Material[]
+  products                 Product[]
   staffProfiles            StaffProfile[]
   payrollPayments          PayrollPayment[]
   notifications            Notification[]
+}
+
+model InventoryLocation {
+  id                String                  @id @default(uuid())
+  businessId        String
+  name              String
+  type              InventoryLocationType   @default(MAIN)
+  isPrimary         Boolean                 @default(false)
+  status            InventoryStatus         @default(ACTIVE)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  business          Business                @relation(fields: [businessId], references: [id])
+  materialLots      MaterialLot[]
+  materialMovements MaterialStockMovement[]
+  productLots       ProductLot[]
+  productMovements  ProductStockMovement[]
+
+  @@unique([businessId, name])
+  @@index([businessId, status, createdAt])
+}
+
+model Material {
+  id                       String                     @id @default(uuid())
+  businessId               String
+  name                     String
+  baseUnit                 String
+  category                 String?
+  sku                      String?
+  reorderFrequencyDays     Int?
+  minStock                 Decimal                    @default(0) @db.Decimal(14, 4)
+  currentStock             Decimal                    @default(0) @db.Decimal(14, 4)
+  currentReferenceUnitCost Decimal                    @default(0) @db.Decimal(14, 4)
+  status                   InventoryStatus            @default(ACTIVE)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  business                 Business                   @relation(fields: [businessId], references: [id])
+  lots                     MaterialLot[]
+  movements                MaterialStockMovement[]
+  recipeItems              ProductRecipeVersionItem[]
+  lotAllocations           MaterialLotAllocation[]
+
+  @@unique([businessId, name])
+  @@index([businessId, status, createdAt])
+}
+
+model MaterialLot {
+  id                String                  @id @default(uuid())
+  businessId        String
+  materialId        String
+  locationId        String
+  sourceType        InventoryLotSourceType
+  lotCode           String?
+  originalQuantity  Decimal                 @db.Decimal(14, 4)
+  remainingQuantity Decimal                 @db.Decimal(14, 4)
+  unitCost          Decimal                 @db.Decimal(14, 4)
+  totalCost         Decimal                 @db.Decimal(14, 4)
+  currency          String
+  receivedAt        DateTime                @default(now())
+  expiresAt         DateTime?
+  referenceType     String?
+  referenceId       String?
+  note              String?
+  createdByUserId   String?
+  createdAt         DateTime                @default(now())
+  material          Material                @relation(fields: [materialId], references: [id])
+  location          InventoryLocation       @relation(fields: [locationId], references: [id])
+  allocations       MaterialLotAllocation[]
+  stockMovements    MaterialStockMovement[]
+
+  @@index([businessId, materialId, locationId, receivedAt])
+  @@index([referenceType, referenceId])
+}
+
+model MaterialStockMovement {
+  id                String                  @id @default(uuid())
+  businessId        String
+  materialId        String
+  locationId        String
+  lotId             String?
+  type              InventoryMovementType
+  quantityDelta     Decimal                 @db.Decimal(14, 4)
+  balanceAfter      Decimal                 @db.Decimal(14, 4)
+  unitCostSnapshot  Decimal?                @db.Decimal(14, 4)
+  totalCostSnapshot Decimal?                @db.Decimal(14, 4)
+  currency          String?
+  referenceType     String?
+  referenceId       String?
+  note              String?
+  createdByUserId   String?
+  createdAt         DateTime                @default(now())
+  material          Material                @relation(fields: [materialId], references: [id])
+  location          InventoryLocation       @relation(fields: [locationId], references: [id])
+  lot               MaterialLot?            @relation(fields: [lotId], references: [id])
+  allocations       MaterialLotAllocation[]
+
+  @@index([businessId, materialId, locationId, createdAt])
+  @@index([referenceType, referenceId])
+}
+
+model MaterialLotAllocation {
+  id                String                @id @default(uuid())
+  businessId        String
+  materialId        String
+  lotId             String
+  movementId        String
+  quantity          Decimal               @db.Decimal(14, 4)
+  unitCostSnapshot  Decimal               @db.Decimal(14, 4)
+  totalCostSnapshot Decimal               @db.Decimal(14, 4)
+  createdAt         DateTime              @default(now())
+  material          Material              @relation(fields: [materialId], references: [id])
+  lot               MaterialLot           @relation(fields: [lotId], references: [id])
+  movement          MaterialStockMovement @relation(fields: [movementId], references: [id])
+
+  @@unique([lotId, movementId])
+  @@index([businessId, materialId, createdAt])
+}
+
+model Product {
+  id                        String                     @id @default(uuid())
+  businessId                String
+  name                      String
+  category                  String?
+  type                      ProductType
+  stockUnit                 String                     @default("unit")
+  estimatedDailySalesVolume Decimal?                   @db.Decimal(14, 4)
+  minStock                  Decimal                    @default(0) @db.Decimal(14, 4)
+  currentStock              Decimal                    @default(0) @db.Decimal(14, 4)
+  currentSalePrice          Decimal                    @default(0) @db.Decimal(14, 4)
+  currentMaterialCost       Decimal                    @default(0) @db.Decimal(14, 4)
+  currentDirectLaborCost    Decimal                    @default(0) @db.Decimal(14, 4)
+  currentAllocatedCifCost   Decimal                    @default(0) @db.Decimal(14, 4)
+  currentCost               Decimal                    @default(0) @db.Decimal(14, 4)
+  status                    InventoryStatus            @default(ACTIVE)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  business                  Business                   @relation(fields: [businessId], references: [id])
+  salePriceHistory          ProductSalePriceHistory[]
+  manualCostHistory         ProductManualCostHistory[]
+  recipeVersions            ProductRecipeVersion[]
+  lots                      ProductLot[]
+  movements                 ProductStockMovement[]
+  lotAllocations            ProductLotAllocation[]
+
+  @@unique([businessId, name])
+  @@index([businessId, status, createdAt])
+}
+
+model ProductSalePriceHistory {
+  id              String   @id @default(uuid())
+  businessId      String
+  productId       String
+  price           Decimal  @db.Decimal(14, 4)
+  currency        String
+  effectiveFrom   DateTime @default(now())
+  createdByUserId String?
+  changeReason    String?
+  createdAt       DateTime @default(now())
+  product         Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId, effectiveFrom])
+}
+
+model ProductManualCostHistory {
+  id               String   @id @default(uuid())
+  businessId       String
+  productId        String
+  materialCost     Decimal  @default(0) @db.Decimal(14, 4)
+  directLaborCost  Decimal  @default(0) @db.Decimal(14, 4)
+  allocatedCifCost Decimal  @default(0) @db.Decimal(14, 4)
+  totalCost        Decimal  @db.Decimal(14, 4)
+  effectiveFrom    DateTime @default(now())
+  createdByUserId  String?
+  changeReason     String?
+  createdAt        DateTime @default(now())
+  product          Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId, effectiveFrom])
+}
+
+model ProductRecipeVersion {
+  id               String                     @id @default(uuid())
+  businessId       String
+  productId        String
+  versionNumber    Int
+  effectiveFrom    DateTime                   @default(now())
+  materialCost     Decimal                    @default(0) @db.Decimal(14, 4)
+  directLaborCost  Decimal                    @default(0) @db.Decimal(14, 4)
+  allocatedCifCost Decimal                    @default(0) @db.Decimal(14, 4)
+  totalCost        Decimal                    @default(0) @db.Decimal(14, 4)
+  note             String?
+  createdByUserId  String?
+  createdAt        DateTime                   @default(now())
+  product          Product                    @relation(fields: [productId], references: [id])
+  items            ProductRecipeVersionItem[]
+
+  @@unique([productId, versionNumber])
+  @@index([productId, effectiveFrom])
+}
+
+model ProductRecipeVersionItem {
+  id              String               @id @default(uuid())
+  recipeVersionId String
+  materialId      String
+  quantity        Decimal              @db.Decimal(14, 4)
+  wastePercent    Decimal              @default(0) @db.Decimal(7, 4)
+  createdAt       DateTime             @default(now())
+  recipeVersion   ProductRecipeVersion @relation(fields: [recipeVersionId], references: [id])
+  material        Material             @relation(fields: [materialId], references: [id])
+
+  @@unique([recipeVersionId, materialId])
+}
+
+model ProductLot {
+  id                String                 @id @default(uuid())
+  businessId        String
+  productId         String
+  locationId        String
+  sourceType        InventoryLotSourceType
+  originalQuantity  Decimal                @db.Decimal(14, 4)
+  remainingQuantity Decimal                @db.Decimal(14, 4)
+  materialCost      Decimal                @default(0) @db.Decimal(14, 4)
+  directLaborCost   Decimal                @default(0) @db.Decimal(14, 4)
+  allocatedCifCost  Decimal                @default(0) @db.Decimal(14, 4)
+  totalUnitCost     Decimal                @db.Decimal(14, 4)
+  totalLotCost      Decimal                @db.Decimal(14, 4)
+  currency          String
+  producedAt        DateTime               @default(now())
+  referenceType     String?
+  referenceId       String?
+  note              String?
+  createdByUserId   String?
+  createdAt         DateTime               @default(now())
+  product           Product                @relation(fields: [productId], references: [id])
+  location          InventoryLocation      @relation(fields: [locationId], references: [id])
+  allocations       ProductLotAllocation[]
+  stockMovements    ProductStockMovement[]
+
+  @@index([businessId, productId, locationId, producedAt])
+  @@index([referenceType, referenceId])
+}
+
+model ProductStockMovement {
+  id                       String                 @id @default(uuid())
+  businessId               String
+  productId                String
+  locationId               String
+  lotId                    String?
+  type                     InventoryMovementType
+  quantityDelta            Decimal                @db.Decimal(14, 4)
+  balanceAfter             Decimal                @db.Decimal(14, 4)
+  materialCostSnapshot     Decimal?               @db.Decimal(14, 4)
+  directLaborCostSnapshot  Decimal?               @db.Decimal(14, 4)
+  allocatedCifCostSnapshot Decimal?               @db.Decimal(14, 4)
+  totalUnitCostSnapshot    Decimal?               @db.Decimal(14, 4)
+  totalCostSnapshot        Decimal?               @db.Decimal(14, 4)
+  currency                 String?
+  referenceType            String?
+  referenceId              String?
+  note                     String?
+  createdByUserId          String?
+  createdAt                DateTime               @default(now())
+  product                  Product                @relation(fields: [productId], references: [id])
+  location                 InventoryLocation      @relation(fields: [locationId], references: [id])
+  lot                      ProductLot?            @relation(fields: [lotId], references: [id])
+  allocations              ProductLotAllocation[]
+
+  @@index([businessId, productId, locationId, createdAt])
+  @@index([referenceType, referenceId])
+}
+
+model ProductLotAllocation {
+  id                       String               @id @default(uuid())
+  businessId               String
+  productId                String
+  lotId                    String
+  movementId               String
+  quantity                 Decimal              @db.Decimal(14, 4)
+  materialCostSnapshot     Decimal              @default(0) @db.Decimal(14, 4)
+  directLaborCostSnapshot  Decimal              @default(0) @db.Decimal(14, 4)
+  allocatedCifCostSnapshot Decimal              @default(0) @db.Decimal(14, 4)
+  totalUnitCostSnapshot    Decimal              @db.Decimal(14, 4)
+  totalCostSnapshot        Decimal              @db.Decimal(14, 4)
+  createdAt                DateTime             @default(now())
+  product                  Product              @relation(fields: [productId], references: [id])
+  lot                      ProductLot           @relation(fields: [lotId], references: [id])
+  movement                 ProductStockMovement @relation(fields: [movementId], references: [id])
+
+  @@unique([lotId, movementId])
+  @@index([businessId, productId, createdAt])
 }
 
 model BusinessMembership {
@@ -155,10 +495,10 @@ model StaffProfile {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  business          Business          @relation(fields: [businessId], references: [id])
-  compensation      StaffCompensation?
+  business            Business                   @relation(fields: [businessId], references: [id])
+  compensation        StaffCompensation?
   compensationHistory StaffCompensationHistory[]
-  payrollPayments   PayrollPayment[]
+  payrollPayments     PayrollPayment[]
 
   @@unique([businessId, username])
 }
@@ -177,7 +517,7 @@ model StaffCompensation {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  staffProfile         StaffProfile     @relation(fields: [staffProfileId], references: [id])
+  staffProfile StaffProfile @relation(fields: [staffProfileId], references: [id])
 }
 
 model StaffCompensationHistory {
@@ -196,7 +536,7 @@ model StaffCompensationHistory {
   changeReason         String?
   createdAt            DateTime         @default(now())
 
-  staffProfile         StaffProfile     @relation(fields: [staffProfileId], references: [id])
+  staffProfile StaffProfile @relation(fields: [staffProfileId], references: [id])
 
   @@index([staffProfileId, effectiveFrom])
 }
@@ -216,8 +556,8 @@ model PayrollPayment {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
-  business         Business             @relation(fields: [businessId], references: [id])
-  staffProfile     StaffProfile         @relation(fields: [staffProfileId], references: [id])
+  business     Business     @relation(fields: [businessId], references: [id])
+  staffProfile StaffProfile @relation(fields: [staffProfileId], references: [id])
 
   @@unique([staffProfileId, dueDate])
   @@index([businessId, dueDate, status])
@@ -241,7 +581,7 @@ model Notification {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
-  business     Business           @relation(fields: [businessId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
 
   @@index([businessId, status, createdAt])
   @@index([resourceType, resourceId])

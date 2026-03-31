@@ -13,11 +13,27 @@ export class BusinessesRepository {
         ...dto,
         createdByUserId: userId,
         memberships: {
-          create: { userId, role: 'OWNER', status: 'ACTIVE', joinedAt: new Date() },
+          create: {
+            userId,
+            role: 'OWNER',
+            status: 'ACTIVE',
+            joinedAt: new Date(),
+          },
         },
         onboarding: { create: {} },
+        inventoryLocations: {
+          create: {
+            name: dto.name,
+            type: 'MAIN',
+            isPrimary: true,
+          },
+        },
       },
-      include: { memberships: true, onboarding: true },
+      include: {
+        memberships: true,
+        onboarding: true,
+        inventoryLocations: true,
+      },
     });
   }
 
@@ -37,7 +53,7 @@ export class BusinessesRepository {
   findOne(id: string) {
     return this.prisma.business.findUnique({
       where: { id },
-      include: { onboarding: true },
+      include: { onboarding: true, inventoryLocations: true },
     });
   }
 

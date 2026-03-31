@@ -9,6 +9,7 @@ import { OnboardingModule } from './onboarding/onboarding.module';
 import { StaffModule } from './staff/staff.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     MembershipsModule,
     OnboardingModule,
     NotificationsModule,
+    InventoryModule,
     PayrollModule,
     StaffModule,
   ],

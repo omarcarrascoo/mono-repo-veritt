@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { BusinessesRepository } from './businesses.repository';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
@@ -16,8 +20,12 @@ export class BusinessesService {
   }
 
   async findOne(businessId: string, userId: string) {
-    const membership = await this.businessesRepository.findMembership(businessId, userId);
-    if (!membership) throw new ForbiddenException('You do not belong to this business');
+    const membership = await this.businessesRepository.findMembership(
+      businessId,
+      userId,
+    );
+    if (!membership)
+      throw new ForbiddenException('You do not belong to this business');
 
     const business = await this.businessesRepository.findOne(businessId);
     if (!business) throw new NotFoundException('Business not found');
@@ -26,9 +34,14 @@ export class BusinessesService {
   }
 
   async update(businessId: string, userId: string, dto: UpdateBusinessDto) {
-    const membership = await this.businessesRepository.findMembership(businessId, userId);
-    if (!membership) throw new ForbiddenException('You do not belong to this business');
-    if (!['OWNER', 'ADMIN'].includes(membership.role)) throw new ForbiddenException('Insufficient permissions');
+    const membership = await this.businessesRepository.findMembership(
+      businessId,
+      userId,
+    );
+    if (!membership)
+      throw new ForbiddenException('You do not belong to this business');
+    if (!['OWNER', 'ADMIN'].includes(membership.role))
+      throw new ForbiddenException('Insufficient permissions');
 
     return this.businessesRepository.update(businessId, dto);
   }
