@@ -1,3 +1,5 @@
+import { InventoryLocation } from '@/types/inventory.types'
+
 export type BusinessType =
   | 'RESTAURANT'
   | 'CAFE'
@@ -12,10 +14,12 @@ export interface Business {
   businessType: BusinessType;
   description?: string;
   timezone: string;
+  defaultCurrency: string;
   city?: string;
   state?: string;
   operationalScheduleJson?: Record<string, any>;
   operationalDayCutoffHour: number;
+  inventoryLocations?: InventoryLocation[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -26,6 +30,20 @@ export interface CreateBusinessDto {
   businessType: BusinessType;
   timezone: string;
   operationalDayCutoffHour: number;
+  defaultCurrency?: string;
+}
+
+export interface UpdateBusinessDto {
+  name?: string;
+  slug?: string;
+  businessType?: BusinessType;
+  description?: string;
+  timezone?: string;
+  defaultCurrency?: string;
+  city?: string;
+  state?: string;
+  operationalScheduleJson?: Record<string, any>;
+  operationalDayCutoffHour?: number;
 }
 
 

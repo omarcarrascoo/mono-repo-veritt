@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { businessesApi } from '@/api/modules/businesses.api';
 import { staffApi } from '@/api/modules/staff.api';
 import { payrollApi } from '@/api/modules/payroll.api';
+import { inventoryApi } from '@/api/modules/inventory.api';
 import { Business, BusinessOnboarding } from '@/types/business.types';
 import { StaffProfile } from '@/types/staff.types';
 import { getApiErrorMessage } from '@/utils/error.utils';
@@ -30,15 +31,28 @@ export default function BusinessDetailScreen() {
   const [onboarding, setOnboarding] = useState<BusinessOnboarding | null>(null);
   const [staff, setStaff] = useState<StaffProfile[]>([]);
   const [upcomingPayrollTotal, setUpcomingPayrollTotal] = useState<number>(0);
+  const [inventoryStats, setInventoryStats] = useState({
+    locations: 0,
+    materials: 0,
+    products: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadBusinessData = async () => {
+  const loadBusinessData = useCallback(async () => {
     if (!businessId) return;
 
     try {
       setIsLoading(true);
 
-      const [businesses, onboardingData, staffData, payrollData] = await Promise.all([
+      const [
+        businesses,
+        onboardingData,
+        staffData,
+        payrollData,
+        locationData,
+        materialData,
+        productData,
+      ] = await Promise.all([
         businessesApi.getMine(),
         businessesApi.getOnboarding(businessId),
         staffApi.getByBusinessId(businessId),
@@ -49,6 +63,9 @@ export default function BusinessDetailScreen() {
           dueToday: [],
           upcoming: [] 
         })),
+        inventoryApi.listLocations(businessId).catch(() => []),
+        inventoryApi.listMaterials(businessId).catch(() => []),
+        inventoryApi.listProducts(businessId).catch(() => []),
       ]);
 
       const foundBusiness = businesses.find((item) => item.id === businessId) ?? null;
@@ -68,6 +85,11 @@ export default function BusinessDetailScreen() {
       setOnboarding(onboardingData);
       setStaff(staffData);
       setUpcomingPayrollTotal(totalAmount);
+      setInventoryStats({
+        locations: locationData.length,
+        materials: materialData.length,
+        products: productData.length,
+      });
     } catch (error) {
       Alert.alert(
         'Error',
@@ -76,11 +98,11 @@ export default function BusinessDetailScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [businessId]);
 
   useEffect(() => {
     loadBusinessData();
-  }, [businessId]);
+  }, [loadBusinessData]);
 
   const pendingSteps = useMemo(() => {
     if (!onboarding) return [];
@@ -331,6 +353,28 @@ export default function BusinessDetailScreen() {
                   </Text>
                   <Text className="mt-1 text-[13px] text-veritt-muted">
                     {activeStaffCount} empleados activos
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/inventory`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="cube-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Ver inventario
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    {inventoryStats.products} productos · {inventoryStats.materials} insumos ·{' '}
+                    {inventoryStats.locations} ubicaciones
                   </Text>
                 </View>
               </View>

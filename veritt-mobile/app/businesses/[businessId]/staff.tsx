@@ -21,7 +21,7 @@ export default function BusinessStaffScreen() {
   const [staff, setStaff] = useState<StaffProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadStaff = async () => {
+  const loadStaff = useCallback(async () => {
     if (!businessId) return;
 
     try {
@@ -33,16 +33,16 @@ export default function BusinessStaffScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [businessId]);
 
   useEffect(() => {
     loadStaff();
-  }, [businessId]);
+  }, [loadStaff]);
 
   useFocusEffect(
     useCallback(() => {
       loadStaff();
-    }, [businessId])
+    }, [loadStaff])
   );
 
   if (isLoading) {

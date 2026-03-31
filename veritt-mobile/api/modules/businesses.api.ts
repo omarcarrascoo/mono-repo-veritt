@@ -2,6 +2,7 @@ import {
   Business,
   BusinessOnboarding,
   CreateBusinessDto,
+  UpdateBusinessDto,
   UpdateBusinessOnboardingDto,
 } from '@/types/business.types';
 import { apiClient } from '@/api/client';
@@ -15,6 +16,19 @@ export const businessesApi = {
   async create(payload: CreateBusinessDto): Promise<Business> {
     const { data } = await apiClient.post<Business>('/businesses', payload);
     return data;
+  },
+
+  async getById(businessId: string): Promise<Business> {
+    const { data } = await apiClient.get<Business>(`/businesses/${businessId}`)
+    return data
+  },
+
+  async update(businessId: string, payload: UpdateBusinessDto): Promise<Business> {
+    const { data } = await apiClient.patch<Business>(
+      `/businesses/${businessId}`,
+      payload
+    )
+    return data
   },
 
   async getOnboarding(businessId: string): Promise<BusinessOnboarding> {
