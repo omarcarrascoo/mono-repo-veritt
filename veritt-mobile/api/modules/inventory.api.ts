@@ -30,6 +30,13 @@ import {
 } from '@/types/inventory.types'
 
 export const inventoryApi = {
+  async listCategories(businessId: string): Promise<string[]> {
+    const { data } = await apiClient.get<string[]>(
+      `/businesses/${businessId}/inventory/categories`
+    )
+    return data
+  },
+
   async listLocations(businessId: string): Promise<InventoryLocation[]> {
     const { data } = await apiClient.get<InventoryLocation[]>(
       `/businesses/${businessId}/inventory/locations`

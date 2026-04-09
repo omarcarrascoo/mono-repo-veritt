@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel';
 import { PayrollDateSelector } from '@/components/staff/PayrollDateSelector';
 
 import { staffApi } from '@/api/modules/staff.api';
+import { areasApi } from '@/api/modules/areas.api';
 import { getApiErrorMessage } from '@/utils/error.utils';
 import { markStaffStepCompleted } from '@/lib/update-onboarding';
 import {
@@ -31,6 +32,21 @@ import {
   PayrollFrequency,
   SystemAccessLevel,
 } from '@/types/staff.types';
+import { Area } from '@/types/area.types';
+
+const PRESET_ROLES = [
+  { label: 'Cocinero', value: 'Cocinero' },
+  { label: 'Mesero', value: 'Mesero' },
+  { label: 'Cajero', value: 'Cajero' },
+  { label: 'Barista', value: 'Barista' },
+  { label: 'Bartender', value: 'Bartender' },
+  { label: 'Host / Hostess', value: 'Host' },
+  { label: 'Gerente', value: 'Gerente' },
+  { label: 'Ayudante de cocina', value: 'Ayudante de cocina' },
+  { label: 'Repartidor', value: 'Repartidor' },
+  { label: 'Limpieza', value: 'Limpieza' },
+  { label: 'Otro', value: '__OTHER__' },
+];
 
 const SHIFT_OPTIONS = [
   { label: 'Matutino', value: 'Matutino' },
@@ -72,13 +88,20 @@ function slugUsername(value: string) {
 export default function CreateStaffScreen() {
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
 
+  const [availableAreas, setAvailableAreas] = useState<Area[]>([]);
+  const [isLoadingAreas, setIsLoadingAreas] = useState(true);
+
   const [fullName, setFullName] = useState('');
-  const [operationalRole, setOperationalRole] = useState('');
+  const [selectedRole, setSelectedRole] = useState('');
+  const [customRole, setCustomRole] = useState('');
   const [shift, setShift] = useState('Matutino');
-  const [area, setArea] = useState('');
+  const [selectedAreaId, setSelectedAreaId] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+
+  const operationalRole = selectedRole === '__OTHER__' ? customRole : selectedRole;
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [systemAccessLevel, setSystemAccessLevel] = useState<SystemAccessLevel>('NONE');
 
   const [salaryAmount, setSalaryAmount] = useState('');
@@ -89,6 +112,30 @@ export default function CreateStaffScreen() {
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const loadAreas = async () => {
+      if (!businessId) return;
+      try {
+        setIsLoadingAreas(true);
+        const areas = await areasApi.list(businessId);
+        setAvailableAreas(areas.filter((a) => a.status === 'ACTIVE'));
+      } catch {
+        // Areas are optional, don't block the form
+      } finally {
+        setIsLoadingAreas(false);
+      }
+    };
+    loadAreas();
+  }, [businessId]);
+
+  const areaOptions = useMemo(
+    () => [
+      { label: 'Sin área asignada', value: '' },
+      ...availableAreas.map((a) => ({ label: a.name, value: a.id })),
+    ],
+    [availableAreas],
+  );
 
   const hasSystemAccess = systemAccessLevel !== 'NONE';
   const payrollHint = getPayrollFrequencyHint(payrollFrequency);
@@ -142,10 +189,39 @@ export default function CreateStaffScreen() {
       return;
     }
 
+    if (selectedRole === '__OTHER__' && !customRole.trim()) {
+      Alert.alert('Faltan datos', 'Escribe el rol operativo del empleado.');
+      return;
+    }
+
     if (hasSystemAccess && !username.trim()) {
       Alert.alert(
         'Falta username',
         'Si este empleado tendrá acceso al sistema, debes asignarle un username.'
+      );
+      return;
+    }
+
+    if (hasSystemAccess && !password.trim()) {
+      Alert.alert(
+        'Falta contraseña',
+        'Crea una contraseña para que este empleado pueda iniciar sesión.'
+      );
+      return;
+    }
+
+    if (hasSystemAccess && password.trim().length < 6) {
+      Alert.alert(
+        'Contraseña muy corta',
+        'La contraseña debe tener al menos 6 caracteres.'
+      );
+      return;
+    }
+
+    if (hasSystemAccess && !email.trim()) {
+      Alert.alert(
+        'Falta correo',
+        'El correo es obligatorio para empleados con acceso al sistema.'
       );
       return;
     }
@@ -190,10 +266,13 @@ export default function CreateStaffScreen() {
         fullName: fullName.trim(),
         operationalRole: operationalRole.trim(),
         shift,
-        assignedAreasJson: area.trim() ? { area: area.trim() } : undefined,
+        assignedAreasJson: selectedAreaId
+          ? { areaId: selectedAreaId, areaName: availableAreas.find((a) => a.id === selectedAreaId)?.name }
+          : undefined,
         phoneNumber: phoneNumber.trim() || undefined,
         email: email.trim() || undefined,
         username: hasSystemAccess ? username.trim() : undefined,
+        password: hasSystemAccess ? password.trim() : undefined,
         systemAccessLevel,
         compensation: compensationPayload,
       });
@@ -229,13 +308,23 @@ export default function CreateStaffScreen() {
               editable={!isSubmitting}
             />
 
-            <VrittInput
+            <VrittSelect
               label="Rol operativo"
-              placeholder="Mesero Principal"
-              value={operationalRole}
-              onChangeText={setOperationalRole}
-              editable={!isSubmitting}
+              value={selectedRole}
+              options={PRESET_ROLES}
+              onChange={setSelectedRole}
+              disabled={isSubmitting}
             />
+
+            {selectedRole === '__OTHER__' && (
+              <VrittInput
+                label="Especifica el rol"
+                placeholder="Ej: Sommelier"
+                value={customRole}
+                onChangeText={setCustomRole}
+                editable={!isSubmitting}
+              />
+            )}
 
             <VrittSelect
               label="Turno"
@@ -245,13 +334,15 @@ export default function CreateStaffScreen() {
               disabled={isSubmitting}
             />
 
-            <VrittInput
-              label="Área asignada"
-              placeholder="Terraza"
-              value={area}
-              onChangeText={setArea}
-              editable={!isSubmitting}
-            />
+            {availableAreas.length > 0 && (
+              <VrittSelect
+                label="Área asignada"
+                value={selectedAreaId}
+                options={areaOptions}
+                onChange={setSelectedAreaId}
+                disabled={isSubmitting}
+              />
+            )}
           </View>
 
           <VrittCard>
@@ -292,15 +383,32 @@ export default function CreateStaffScreen() {
               />
 
               {hasSystemAccess ? (
-                <VrittInput
-                  label="Username"
-                  placeholder="juan.perez"
-                  value={username}
-                  onChangeText={(value) => setUsername(slugUsername(value))}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!isSubmitting}
-                />
+                <>
+                  <VrittInput
+                    label="Username"
+                    placeholder="juan.perez"
+                    value={username}
+                    onChangeText={(value) => setUsername(slugUsername(value))}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isSubmitting}
+                  />
+
+                  <VrittInput
+                    label="Contraseña"
+                    placeholder="Mínimo 6 caracteres"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isSubmitting}
+                  />
+
+                  <Text className="text-[13px] leading-[20px] text-veritt-muted">
+                    Con estas credenciales el empleado podrá iniciar sesión. El correo es obligatorio.
+                  </Text>
+                </>
               ) : (
                 <Text className="text-[13px] leading-[20px] text-veritt-muted">
                   Este empleado no tendrá acceso al sistema por ahora.

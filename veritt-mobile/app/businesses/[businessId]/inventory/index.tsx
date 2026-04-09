@@ -277,25 +277,31 @@ export default function BusinessInventoryScreen() {
           <VrittSectionLabel>Ubicaciones</VrittSectionLabel>
 
           {locations.map((location) => (
-            <VrittCard key={location.id}>
-              <View className="flex-row items-start justify-between gap-3">
-                <View className="flex-1">
-                  <Text className="text-[18px] font-bold text-veritt-text">
-                    {location.name}
-                  </Text>
-                  <Text className="mt-1 text-[14px] text-veritt-muted">
-                    {formatLocationType(location.type)}
-                  </Text>
-                </View>
+            <TouchableOpacity
+              key={location.id}
+              activeOpacity={0.85}
+              onPress={() => router.push(`/businesses/${businessId}/inventory/locations/${location.id}`)}
+            >
+              <VrittCard>
+                <View className="flex-row items-start justify-between gap-3">
+                  <View className="flex-1">
+                    <Text className="text-[18px] font-bold text-veritt-text">
+                      {location.name}
+                    </Text>
+                    <Text className="mt-1 text-[14px] text-veritt-muted">
+                      {formatLocationType(location.type)}
+                    </Text>
+                  </View>
 
-                <View className="items-end gap-2">
-                  {location.isPrimary ? (
-                    <StatusPill label="Principal" tone="primary" />
-                  ) : null}
-                  <StatusPill label={formatInventoryStatus(location.status)} />
+                  <View className="items-end gap-2">
+                    {location.isPrimary ? (
+                      <StatusPill label="Principal" tone="primary" />
+                    ) : null}
+                    <StatusPill label={formatInventoryStatus(location.status)} />
+                  </View>
                 </View>
-              </View>
-            </VrittCard>
+              </VrittCard>
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -321,51 +327,57 @@ export default function BusinessInventoryScreen() {
               const stockTone = getStockTone(currentStock, minStock)
 
               return (
-                <VrittCard key={material.id}>
-                  <View className="flex-row items-start justify-between gap-3">
-                    <View className="flex-1">
-                      <Text className="text-[18px] font-bold text-veritt-text">
-                        {material.name}
-                      </Text>
-                      <Text className="mt-1 text-[14px] text-veritt-muted">
-                        {material.category || 'Sin categoría'} · {material.baseUnit}
-                      </Text>
+                <TouchableOpacity
+                  key={material.id}
+                  activeOpacity={0.85}
+                  onPress={() => router.push(`/businesses/${businessId}/inventory/materials/${material.id}`)}
+                >
+                  <VrittCard>
+                    <View className="flex-row items-start justify-between gap-3">
+                      <View className="flex-1">
+                        <Text className="text-[18px] font-bold text-veritt-text">
+                          {material.name}
+                        </Text>
+                        <Text className="mt-1 text-[14px] text-veritt-muted">
+                          {material.category || 'Sin categoría'} · {material.baseUnit}
+                        </Text>
+                      </View>
+
+                      <StatusPill
+                        label={
+                          stockTone === 'danger'
+                            ? 'Sin stock'
+                            : stockTone === 'warning'
+                              ? 'Stock bajo'
+                              : 'Disponible'
+                        }
+                        tone={stockTone}
+                      />
                     </View>
 
-                    <StatusPill
-                      label={
-                        stockTone === 'danger'
-                          ? 'Sin stock'
-                          : stockTone === 'warning'
-                            ? 'Stock bajo'
-                            : 'Disponible'
-                      }
-                      tone={stockTone}
-                    />
-                  </View>
-
-                  <View className="mt-4 gap-2">
-                    <Text className="text-[14px] text-veritt-text">
-                      Stock actual:{' '}
-                      {formatInventoryQuantity(material.currentStock, material.baseUnit)}
-                    </Text>
-                    <Text className="text-[14px] text-veritt-text">
-                      Stock mínimo:{' '}
-                      {formatInventoryQuantity(material.minStock, material.baseUnit)}
-                    </Text>
-                    <Text className="text-[14px] text-veritt-text">
-                      Costo de referencia:{' '}
-                      {formatInventoryCurrency(
-                        material.currentReferenceUnitCost,
-                        business.defaultCurrency
-                      )}{' '}
-                      por {material.baseUnit}
-                    </Text>
-                    {material.sku ? (
-                      <Text className="text-[13px] text-veritt-muted">SKU: {material.sku}</Text>
-                    ) : null}
-                  </View>
-                </VrittCard>
+                    <View className="mt-4 gap-2">
+                      <Text className="text-[14px] text-veritt-text">
+                        Stock actual:{' '}
+                        {formatInventoryQuantity(material.currentStock, material.baseUnit)}
+                      </Text>
+                      <Text className="text-[14px] text-veritt-text">
+                        Stock mínimo:{' '}
+                        {formatInventoryQuantity(material.minStock, material.baseUnit)}
+                      </Text>
+                      <Text className="text-[14px] text-veritt-text">
+                        Costo de referencia:{' '}
+                        {formatInventoryCurrency(
+                          material.currentReferenceUnitCost,
+                          business.defaultCurrency
+                        )}{' '}
+                        por {material.baseUnit}
+                      </Text>
+                      {material.sku ? (
+                        <Text className="text-[13px] text-veritt-muted">SKU: {material.sku}</Text>
+                      ) : null}
+                    </View>
+                  </VrittCard>
+                </TouchableOpacity>
               )
             })
           )}
@@ -388,51 +400,57 @@ export default function BusinessInventoryScreen() {
               const stockTone = getStockTone(currentStock, minStock)
 
               return (
-                <VrittCard key={product.id}>
-                  <View className="flex-row items-start justify-between gap-3">
-                    <View className="flex-1">
-                      <Text className="text-[18px] font-bold text-veritt-text">
-                        {product.name}
-                      </Text>
-                      <Text className="mt-1 text-[14px] text-veritt-muted">
-                        {formatProductType(product.type)} · {product.category || 'Sin categoría'}
-                      </Text>
+                <TouchableOpacity
+                  key={product.id}
+                  activeOpacity={0.85}
+                  onPress={() => router.push(`/businesses/${businessId}/inventory/products/${product.id}`)}
+                >
+                  <VrittCard>
+                    <View className="flex-row items-start justify-between gap-3">
+                      <View className="flex-1">
+                        <Text className="text-[18px] font-bold text-veritt-text">
+                          {product.name}
+                        </Text>
+                        <Text className="mt-1 text-[14px] text-veritt-muted">
+                          {formatProductType(product.type)} · {product.category || 'Sin categoría'}
+                        </Text>
+                      </View>
+
+                      <StatusPill
+                        label={
+                          stockTone === 'danger'
+                            ? 'Agotado'
+                            : stockTone === 'warning'
+                              ? 'Mínimo'
+                              : 'Disponible'
+                        }
+                        tone={stockTone}
+                      />
                     </View>
 
-                    <StatusPill
-                      label={
-                        stockTone === 'danger'
-                          ? 'Agotado'
-                          : stockTone === 'warning'
-                            ? 'Mínimo'
-                            : 'Disponible'
-                      }
-                      tone={stockTone}
-                    />
-                  </View>
-
-                  <View className="mt-4 gap-2">
-                    <Text className="text-[14px] text-veritt-text">
-                      Precio de venta:{' '}
-                      {formatInventoryCurrency(
-                        product.currentSalePrice,
-                        business.defaultCurrency
-                      )}
-                    </Text>
-                    <Text className="text-[14px] text-veritt-text">
-                      Costo actual:{' '}
-                      {formatInventoryCurrency(product.currentCost, business.defaultCurrency)}
-                    </Text>
-                    <Text className="text-[14px] text-veritt-text">
-                      Stock actual:{' '}
-                      {formatInventoryQuantity(product.currentStock, product.stockUnit)}
-                    </Text>
-                    <Text className="text-[14px] text-veritt-text">
-                      Stock mínimo:{' '}
-                      {formatInventoryQuantity(product.minStock, product.stockUnit)}
-                    </Text>
-                  </View>
-                </VrittCard>
+                    <View className="mt-4 gap-2">
+                      <Text className="text-[14px] text-veritt-text">
+                        Precio de venta:{' '}
+                        {formatInventoryCurrency(
+                          product.currentSalePrice,
+                          business.defaultCurrency
+                        )}
+                      </Text>
+                      <Text className="text-[14px] text-veritt-text">
+                        Costo actual:{' '}
+                        {formatInventoryCurrency(product.currentCost, business.defaultCurrency)}
+                      </Text>
+                      <Text className="text-[14px] text-veritt-text">
+                        Stock actual:{' '}
+                        {formatInventoryQuantity(product.currentStock, product.stockUnit)}
+                      </Text>
+                      <Text className="text-[14px] text-veritt-text">
+                        Stock mínimo:{' '}
+                        {formatInventoryQuantity(product.minStock, product.stockUnit)}
+                      </Text>
+                    </View>
+                  </VrittCard>
+                </TouchableOpacity>
               )
             })
           )}

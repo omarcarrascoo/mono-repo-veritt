@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, KeyboardAvoidingView, Platform, Text, View } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 
@@ -16,6 +16,7 @@ import { formatLocationType } from '@/lib/inventory-formatters'
 import { Business } from '@/types/business.types'
 import { InventoryLocation } from '@/types/inventory.types'
 import { getApiErrorMessage } from '@/utils/error.utils'
+import { markIngredientsStepCompleted } from '@/lib/update-onboarding'
 
 function parseOptionalNumber(value: string) {
   if (!value.trim()) return undefined
@@ -29,12 +30,15 @@ export default function CreateMaterialScreen() {
 
   const [business, setBusiness] = useState<Business | null>(null)
   const [locations, setLocations] = useState<InventoryLocation[]>([])
+  const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [name, setName] = useState('')
   const [baseUnit, setBaseUnit] = useState('')
-  const [category, setCategory] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [customCategory, setCustomCategory] = useState('')
+  const category = selectedCategory === '__CUSTOM__' ? customCategory : selectedCategory
   const [sku, setSku] = useState('')
   const [reorderFrequencyDays, setReorderFrequencyDays] = useState('')
   const [minStock, setMinStock] = useState('')
@@ -49,13 +53,15 @@ export default function CreateMaterialScreen() {
       try {
         setIsLoadingData(true)
 
-        const [businessData, locationData] = await Promise.all([
+        const [businessData, locationData, categories] = await Promise.all([
           businessesApi.getById(businessId),
           inventoryApi.listLocations(businessId),
+          inventoryApi.listCategories(businessId).catch(() => []),
         ])
 
         setBusiness(businessData)
         setLocations(locationData)
+        setExistingCategories(categories)
 
         const preferredLocation =
           locationData.find((item) => item.isPrimary) ?? locationData[0]
@@ -75,6 +81,15 @@ export default function CreateMaterialScreen() {
 
     loadFormData()
   }, [businessId])
+
+  const categoryOptions = useMemo(
+    () => [
+      { label: 'Sin categoría', value: '' },
+      ...existingCategories.map((c) => ({ label: c, value: c })),
+      { label: 'Nueva categoría...', value: '__CUSTOM__' },
+    ],
+    [existingCategories],
+  )
 
   const locationOptions = useMemo(
     () =>
@@ -146,6 +161,7 @@ export default function CreateMaterialScreen() {
         })
       }
 
+      await markIngredientsStepCompleted(businessId).catch(() => {})
       router.replace(`/businesses/${businessId}/inventory`)
     } catch (error) {
       if (createdMaterialName) {
@@ -208,13 +224,23 @@ export default function CreateMaterialScreen() {
               editable={!isSubmitting}
             />
 
-            <VrittInput
+            <VrittSelect
               label="Categoría"
-              placeholder="Panadería"
-              value={category}
-              onChangeText={setCategory}
-              editable={!isSubmitting}
+              value={selectedCategory}
+              options={categoryOptions}
+              onChange={setSelectedCategory}
+              disabled={isSubmitting}
             />
+
+            {selectedCategory === '__CUSTOM__' && (
+              <VrittInput
+                label="Nueva categoría"
+                placeholder="Ej: Panadería"
+                value={customCategory}
+                onChangeText={setCustomCategory}
+                editable={!isSubmitting}
+              />
+            )}
 
             <VrittInput
               label="SKU"

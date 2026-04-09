@@ -31,7 +31,12 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error?.response?.status === 401 && onUnauthorized) {
+    const status = error?.response?.status;
+    const url = error?.config?.url ?? 'unknown';
+    const method = error?.config?.method?.toUpperCase() ?? '?';
+    console.error(`[API ${method} ${url}] status=${status}`, error?.response?.data ?? error?.message);
+
+    if (status === 401 && onUnauthorized) {
       await onUnauthorized();
     }
 

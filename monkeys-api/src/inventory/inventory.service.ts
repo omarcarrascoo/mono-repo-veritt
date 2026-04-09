@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -946,6 +947,29 @@ export class InventoryService {
     };
   }
 
+  async listCategories(businessId: string, userId: string): Promise<string[]> {
+    await this.ensureBusinessAccess(businessId, userId);
+
+    const [materialCats, productCats] = await Promise.all([
+      this.prisma.material.findMany({
+        where: { businessId, category: { not: null } },
+        select: { category: true },
+        distinct: ['category'],
+      }),
+      this.prisma.product.findMany({
+        where: { businessId, category: { not: null } },
+        select: { category: true },
+        distinct: ['category'],
+      }),
+    ]);
+
+    const allCategories = new Set<string>();
+    for (const m of materialCats) if (m.category) allCategories.add(m.category);
+    for (const p of productCats) if (p.category) allCategories.add(p.category);
+
+    return Array.from(allCategories).sort();
+  }
+
   async listLocations(businessId: string, userId: string) {
     await this.ensureBusinessAccess(businessId, userId);
     await this.ensurePrimaryLocation(businessId);
@@ -1040,6 +1064,15 @@ export class InventoryService {
     dto: CreateMaterialDto,
   ) {
     await this.ensureManagementAccess(businessId, userId);
+
+    if (dto.sku) {
+      const existing = await this.prisma.material.findFirst({
+        where: { businessId, sku: dto.sku },
+      });
+      if (existing) {
+        throw new ConflictException(`El SKU "${dto.sku}" ya está en uso por otro insumo.`);
+      }
+    }
 
     const material = await this.prisma.material.create({
       data: {

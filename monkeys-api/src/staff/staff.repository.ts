@@ -36,11 +36,47 @@ export class StaffRepository {
     });
   }
 
-  create(businessId: string, dto: CreateStaffDto) {
+  findByUsername(businessId: string, username: string) {
+    return this.prisma.staffProfile.findUnique({
+      where: { businessId_username: { businessId, username } },
+    });
+  }
+
+  findUserByEmail(email: string) {
+    return this.prisma.user.findUnique({
+      where: { email },
+    });
+  }
+
+  async createUserWithMembership(
+    email: string,
+    passwordHash: string,
+    fullName: string,
+    businessId: string,
+    role: string,
+  ) {
+    return this.prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        fullName,
+        memberships: {
+          create: {
+            businessId,
+            role: role as any,
+            status: 'ACTIVE',
+          },
+        },
+      },
+    });
+  }
+
+  create(businessId: string, dto: CreateStaffDto, linkedUserId?: string) {
     return this.prisma.$transaction(async (tx) => {
       const staff = await tx.staffProfile.create({
         data: {
           businessId,
+          userId: linkedUserId,
           fullName: dto.fullName,
           operationalRole: dto.operationalRole,
           assignedAreasJson: dto.assignedAreasJson,

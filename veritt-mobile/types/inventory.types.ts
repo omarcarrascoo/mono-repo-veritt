@@ -41,9 +41,11 @@ export interface InventoryLocation {
   name: string
   type: InventoryLocationType
   isPrimary: boolean
+  areaId?: string | null
   status: InventoryStatus
   createdAt?: string
   updatedAt?: string
+  area?: { id: string; name: string; type: string } | null
 }
 
 export interface MaterialLot {

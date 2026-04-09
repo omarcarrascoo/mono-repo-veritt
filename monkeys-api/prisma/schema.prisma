@@ -117,6 +117,82 @@ enum InventoryLotSourceType {
   ADJUSTMENT
 }
 
+// ──────────────────────────────────────────────
+// Phase 1 enums: Areas, Processes, Time Tracking
+// ──────────────────────────────────────────────
+
+enum AreaType {
+  KITCHEN
+  BAR
+  DINING
+  CASH_REGISTER
+  WAREHOUSE
+  OFFICE
+  PRODUCTION
+  OTHER
+}
+
+enum AreaStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProcessStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProcessExecutionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ShiftLogStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ShiftBreakType {
+  MEAL
+  REST
+  OTHER
+}
+
+enum PermissionAction {
+  READ
+  EXECUTE
+  APPROVE
+  MANAGE
+}
+
+// ──────────────────────────────────────────────
+// Phase 2 enums: Sales & POS
+// ──────────────────────────────────────────────
+
+enum PaymentMethodType {
+  CASH
+  CARD_TERMINAL
+  BANK_TRANSFER
+  OTHER
+}
+
+enum PaymentMethodStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SaleStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
 model User {
   id           String               @id @default(uuid())
   email        String               @unique
@@ -125,8 +201,13 @@ model User {
   status       UserStatus           @default(ACTIVE)
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
-  memberships  BusinessMembership[]
-  businesses   Business[]           @relation("BusinessCreator")
+  memberships      BusinessMembership[]
+  businesses       Business[]           @relation("BusinessCreator")
+  purchaseOrders     PurchaseOrder[]      @relation("PurchaseOrderCreator")
+  receiptsReceived   Receipt[]            @relation("ReceiptReceiver")
+  receiptsCancelled  Receipt[]            @relation("ReceiptCanceller")
+  invoicesVerified   SupplierInvoice[]    @relation("InvoiceVerifier")
+  invoicesDeleted    SupplierInvoice[]    @relation("InvoiceDeleter")
 }
 
 model Business {
@@ -153,6 +234,16 @@ model Business {
   staffProfiles            StaffProfile[]
   payrollPayments          PayrollPayment[]
   notifications            Notification[]
+  areas                    Area[]
+  processTemplates         ProcessTemplate[]
+  shiftLogs                ShiftLog[]
+  rolePermissions          RolePermission[]
+  paymentMethods           PaymentMethod[]
+  sales                    Sale[]
+  suppliers                Supplier[]
+  purchaseOrders           PurchaseOrder[]
+  receipts                 Receipt[]
+  supplierInvoices         SupplierInvoice[]
 }
 
 model InventoryLocation {
@@ -161,14 +252,17 @@ model InventoryLocation {
   name              String
   type              InventoryLocationType   @default(MAIN)
   isPrimary         Boolean                 @default(false)
+  areaId            String?
   status            InventoryStatus         @default(ACTIVE)
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
   business          Business                @relation(fields: [businessId], references: [id])
+  area              Area?                   @relation(fields: [areaId], references: [id])
   materialLots      MaterialLot[]
   materialMovements MaterialStockMovement[]
   productLots       ProductLot[]
   productMovements  ProductStockMovement[]
+  receipts          Receipt[]
 
   @@unique([businessId, name])
   @@index([businessId, status, createdAt])
@@ -193,8 +287,12 @@ model Material {
   movements                MaterialStockMovement[]
   recipeItems              ProductRecipeVersionItem[]
   lotAllocations           MaterialLotAllocation[]
+  theoreticalConsumptions  TheoreticalConsumption[]
+  purchaseOrderItems       PurchaseOrderItem[]
+  receiptItems             ReceiptItem[]
 
   @@unique([businessId, name])
+  @@unique([businessId, sku])
   @@index([businessId, status, createdAt])
 }
 
@@ -221,6 +319,7 @@ model MaterialLot {
   location          InventoryLocation       @relation(fields: [locationId], references: [id])
   allocations       MaterialLotAllocation[]
   stockMovements    MaterialStockMovement[]
+  receiptItems      ReceiptItem[]
 
   @@index([businessId, materialId, locationId, receivedAt])
   @@index([referenceType, referenceId])
@@ -295,6 +394,7 @@ model Product {
   lots                      ProductLot[]
   movements                 ProductStockMovement[]
   lotAllocations            ProductLotAllocation[]
+  saleItems                 SaleItem[]
 
   @@unique([businessId, name])
   @@index([businessId, status, createdAt])
@@ -345,8 +445,10 @@ model ProductRecipeVersion {
   note             String?
   createdByUserId  String?
   createdAt        DateTime                   @default(now())
-  product          Product                    @relation(fields: [productId], references: [id])
-  items            ProductRecipeVersionItem[]
+  product                  Product                    @relation(fields: [productId], references: [id])
+  items                    ProductRecipeVersionItem[]
+  saleItems                SaleItem[]
+  theoreticalConsumptions  TheoreticalConsumption[]
 
   @@unique([productId, versionNumber])
   @@index([productId, effectiveFrom])
@@ -499,8 +601,11 @@ model StaffProfile {
   compensation        StaffCompensation?
   compensationHistory StaffCompensationHistory[]
   payrollPayments     PayrollPayment[]
+  shiftLogs           ShiftLog[]
+  sales               Sale[]
 
   @@unique([businessId, username])
+  @@index([businessId, status])
 }
 
 model StaffCompensation {
@@ -561,7 +666,7 @@ model PayrollPayment {
 
   @@unique([staffProfileId, dueDate])
   @@index([businessId, dueDate, status])
-  @@index([staffProfileId, dueDate])
+  @@index([staffProfileId, status, dueDate])
 }
 
 model Notification {
@@ -585,4 +690,424 @@ model Notification {
 
   @@index([businessId, status, createdAt])
   @@index([resourceType, resourceId])
+}
+
+// ──────────────────────────────────────────────
+// Phase 1 models: Areas, Processes, Time Tracking
+// ──────────────────────────────────────────────
+
+model Area {
+  id           String     @id @default(uuid())
+  businessId   String
+  name         String
+  type         AreaType   @default(OTHER)
+  description  String?
+  parentAreaId String?
+  status       AreaStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  business           Business            @relation(fields: [businessId], references: [id])
+  parentArea         Area?               @relation("AreaHierarchy", fields: [parentAreaId], references: [id])
+  childAreas         Area[]              @relation("AreaHierarchy")
+  inventoryLocations InventoryLocation[]
+  processSteps       ProcessStep[]
+  processExecutions  ProcessExecution[]
+  shiftLogs          ShiftLog[]
+  sales              Sale[]
+  rolePermissions    RolePermission[]
+
+  @@unique([businessId, name])
+  @@index([businessId, status, createdAt])
+}
+
+model ProcessTemplate {
+  id          String        @id @default(uuid())
+  businessId  String
+  name        String
+  description String?
+  isBlocking  Boolean       @default(false)
+  status      ProcessStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  business   Business           @relation(fields: [businessId], references: [id])
+  steps      ProcessStep[]
+  executions ProcessExecution[]
+  rolePermissions RolePermission[]
+
+  @@unique([businessId, name])
+  @@index([businessId, status])
+}
+
+model ProcessStep {
+  id             String          @id @default(uuid())
+  processId      String
+  name           String
+  description    String?
+  stepOrder      Int
+  requiredRole   MembershipRole?
+  assignedAreaId String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  process      ProcessTemplate @relation(fields: [processId], references: [id], onDelete: Cascade)
+  assignedArea Area?           @relation(fields: [assignedAreaId], references: [id])
+
+  @@unique([processId, stepOrder])
+  @@index([processId])
+}
+
+model ProcessExecution {
+  id               String                 @id @default(uuid())
+  businessId       String
+  processId        String
+  areaId           String?
+  executedByUserId String
+  startedAt        DateTime               @default(now())
+  completedAt      DateTime?
+  status           ProcessExecutionStatus @default(PENDING)
+  notesJson        Json?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  process ProcessTemplate @relation(fields: [processId], references: [id])
+  area    Area?           @relation(fields: [areaId], references: [id])
+
+  @@index([businessId, processId, startedAt])
+  @@index([businessId, status])
+}
+
+model ShiftLog {
+  id               String         @id @default(uuid())
+  businessId       String
+  staffProfileId   String
+  areaId           String?
+  clockInAt        DateTime       @default(now())
+  clockOutAt       DateTime?
+  clockInLatitude  Decimal?       @db.Decimal(10, 7)
+  clockInLongitude Decimal?       @db.Decimal(10, 7)
+  clockOutLatitude  Decimal?      @db.Decimal(10, 7)
+  clockOutLongitude Decimal?      @db.Decimal(10, 7)
+  totalMinutes     Int?
+  status           ShiftLogStatus @default(ACTIVE)
+  note             String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  business     Business     @relation(fields: [businessId], references: [id])
+  staffProfile StaffProfile @relation(fields: [staffProfileId], references: [id])
+  area         Area?        @relation(fields: [areaId], references: [id])
+  breaks       ShiftBreak[]
+
+  @@index([businessId, staffProfileId, clockInAt])
+  @@index([businessId, clockInAt])
+}
+
+model ShiftBreak {
+  id         String         @id @default(uuid())
+  shiftLogId String
+  startAt    DateTime       @default(now())
+  endAt      DateTime?
+  type       ShiftBreakType @default(REST)
+  minutes    Int?
+  createdAt  DateTime       @default(now())
+
+  shiftLog ShiftLog @relation(fields: [shiftLogId], references: [id], onDelete: Cascade)
+
+  @@index([shiftLogId])
+}
+
+model RolePermission {
+  id         String           @id @default(uuid())
+  businessId String
+  role       MembershipRole
+  areaId     String?
+  processId  String?
+  permission PermissionAction
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  business Business         @relation(fields: [businessId], references: [id])
+  area     Area?            @relation(fields: [areaId], references: [id])
+  process  ProcessTemplate? @relation(fields: [processId], references: [id])
+
+  @@unique([businessId, role, areaId, processId, permission])
+  @@index([businessId, role])
+}
+
+// ──────────────────────────────────────────────
+// Phase 2 models: Sales & POS
+// ──────────────────────────────────────────────
+
+model PaymentMethod {
+  id                String              @id @default(uuid())
+  businessId        String
+  name              String
+  type              PaymentMethodType
+  terminalReference String?
+  bankReference     String?
+  status            PaymentMethodStatus @default(ACTIVE)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  business     Business      @relation(fields: [businessId], references: [id])
+  salePayments SalePayment[]
+
+  @@unique([businessId, name])
+  @@index([businessId, status])
+}
+
+model Sale {
+  id                 String     @id @default(uuid())
+  businessId         String
+  areaId             String?
+  operatorStaffId    String
+  saleNumber         Int
+  subtotal           Decimal    @db.Decimal(14, 4)
+  taxAmount          Decimal    @default(0) @db.Decimal(14, 4)
+  total              Decimal    @db.Decimal(14, 4)
+  status             SaleStatus @default(OPEN)
+  cancelledByUserId  String?
+  cancellationReason String?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  note               String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  business                Business                 @relation(fields: [businessId], references: [id])
+  area                    Area?                    @relation(fields: [areaId], references: [id])
+  operator                StaffProfile             @relation(fields: [operatorStaffId], references: [id])
+  items                   SaleItem[]
+  payments                SalePayment[]
+  theoreticalConsumptions TheoreticalConsumption[]
+
+  @@unique([businessId, saleNumber])
+  @@index([businessId, createdAt])
+  @@index([businessId, status, createdAt])
+  @@index([businessId, areaId, createdAt])
+}
+
+model SaleItem {
+  id              String   @id @default(uuid())
+  saleId          String
+  productId       String
+  quantity        Decimal  @db.Decimal(14, 4)
+  unitPrice       Decimal  @db.Decimal(14, 4)
+  totalPrice      Decimal  @db.Decimal(14, 4)
+  costSnapshot    Decimal  @default(0) @db.Decimal(14, 4)
+  recipeVersionId String?
+  createdAt       DateTime @default(now())
+
+  sale                    Sale                     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product                 Product                  @relation(fields: [productId], references: [id])
+  recipeVersion           ProductRecipeVersion?    @relation(fields: [recipeVersionId], references: [id])
+  theoreticalConsumptions TheoreticalConsumption[]
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model SalePayment {
+  id              String   @id @default(uuid())
+  saleId          String
+  paymentMethodId String
+  amount          Decimal  @db.Decimal(14, 4)
+  reference       String?
+  createdAt       DateTime @default(now())
+
+  sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+
+  @@index([saleId])
+  @@index([paymentMethodId])
+}
+
+model TheoreticalConsumption {
+  id               String   @id @default(uuid())
+  businessId       String
+  saleId           String
+  saleItemId       String
+  materialId       String
+  recipeVersionId  String
+  productQuantity  Decimal  @db.Decimal(14, 4)
+  recipeQuantity   Decimal  @db.Decimal(14, 4)
+  wastePercent     Decimal  @default(0) @db.Decimal(7, 4)
+  expectedQuantity Decimal  @db.Decimal(14, 4)
+  unitCostSnapshot Decimal  @default(0) @db.Decimal(14, 4)
+  expectedCost     Decimal  @default(0) @db.Decimal(14, 4)
+  calculatedAt     DateTime @default(now())
+
+  sale          Sale                 @relation(fields: [saleId], references: [id])
+  saleItem      SaleItem             @relation(fields: [saleItemId], references: [id])
+  material      Material             @relation(fields: [materialId], references: [id])
+  recipeVersion ProductRecipeVersion @relation(fields: [recipeVersionId], references: [id])
+
+  @@index([businessId, saleId])
+  @@index([businessId, materialId, calculatedAt])
+  @@index([saleItemId])
+}
+
+// ── Phase 3: Supply Chain ──────────────────────────────────────────────
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum ReceiptStatus {
+  COMPLETED
+  PARTIAL
+  CANCELLED
+}
+
+enum SupplierInvoiceStatus {
+  PENDING
+  VERIFIED
+  DISPUTED
+  DELETED
+}
+
+model Supplier {
+  id          String         @id @default(uuid())
+  businessId  String
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  rfc         String?
+  address     String?
+  notes       String?
+  status      SupplierStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  business       Business          @relation(fields: [businessId], references: [id])
+  purchaseOrders PurchaseOrder[]
+  invoices       SupplierInvoice[]
+
+  @@unique([businessId, name])
+  @@unique([businessId, rfc])
+  @@index([businessId, status])
+}
+
+model PurchaseOrder {
+  id              String              @id @default(uuid())
+  businessId      String
+  supplierId      String
+  createdByUserId String
+  orderNumber     Int
+  status          PurchaseOrderStatus @default(DRAFT)
+  totalEstimated  Decimal             @default(0) @db.Decimal(14, 4)
+  currency        String              @default("MXN")
+  notes           String?
+  sentAt          DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  business  Business            @relation(fields: [businessId], references: [id])
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  createdBy User                @relation("PurchaseOrderCreator", fields: [createdByUserId], references: [id])
+  items     PurchaseOrderItem[]
+  receipts  Receipt[]
+
+  @@index([businessId, status])
+  @@index([supplierId])
+}
+
+model PurchaseOrderItem {
+  id                String  @id @default(uuid())
+  purchaseOrderId   String
+  materialId        String
+  quantityOrdered   Decimal @db.Decimal(14, 4)
+  estimatedUnitCost Decimal @db.Decimal(14, 4)
+  notes             String?
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  material      Material      @relation(fields: [materialId], references: [id])
+
+  @@index([purchaseOrderId])
+}
+
+model Receipt {
+  id                  String        @id @default(uuid())
+  businessId          String
+  purchaseOrderId     String?
+  receivedByUserId    String
+  locationId          String
+  status              ReceiptStatus @default(COMPLETED)
+  notes               String?
+  cancellationReason  String?
+  cancellationComment String?
+  cancelledByUserId   String?
+  cancelledAt         DateTime?
+  receivedAt          DateTime      @default(now())
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  business      Business          @relation(fields: [businessId], references: [id])
+  purchaseOrder PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id])
+  receivedBy    User              @relation("ReceiptReceiver", fields: [receivedByUserId], references: [id])
+  cancelledBy   User?             @relation("ReceiptCanceller", fields: [cancelledByUserId], references: [id])
+  location      InventoryLocation @relation(fields: [locationId], references: [id])
+  items         ReceiptItem[]
+  invoice       SupplierInvoice?
+
+  @@index([businessId])
+  @@index([purchaseOrderId])
+}
+
+model ReceiptItem {
+  id               String  @id @default(uuid())
+  receiptId        String
+  materialId       String
+  quantityReceived Decimal @db.Decimal(14, 4)
+  actualUnitCost   Decimal @db.Decimal(14, 4)
+  lotId            String?
+
+  receipt  Receipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  material Material     @relation(fields: [materialId], references: [id])
+  lot      MaterialLot? @relation(fields: [lotId], references: [id])
+
+  @@index([receiptId])
+}
+
+model SupplierInvoice {
+  id                String                @id @default(uuid())
+  businessId        String
+  supplierId        String
+  receiptId         String?               @unique
+  cfdiUuid          String?
+  cfdiXml           String?
+  totalAmount       Decimal               @db.Decimal(14, 4)
+  receiptTotal      Decimal?              @db.Decimal(14, 4)
+  discrepancyNote   String?
+  currency          String                @default("MXN")
+  invoiceDate       DateTime
+  status            SupplierInvoiceStatus @default(PENDING)
+  verifiedByUserId  String?
+  verifiedAt        DateTime?
+  deletedByUserId   String?
+  deletedAt         DateTime?
+  deletionReason    String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  business   Business @relation(fields: [businessId], references: [id])
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+  receipt    Receipt? @relation(fields: [receiptId], references: [id])
+  verifiedBy User?    @relation("InvoiceVerifier", fields: [verifiedByUserId], references: [id])
+  deletedBy  User?    @relation("InvoiceDeleter", fields: [deletedByUserId], references: [id])
+
+  @@index([businessId, status])
+  @@index([supplierId])
 }

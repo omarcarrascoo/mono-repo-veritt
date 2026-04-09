@@ -401,6 +401,195 @@ export default function BusinessDetailScreen() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
             </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/sales`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="cart-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Ventas y POS
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Registrar ventas y ver reportes
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/areas`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="map-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Áreas
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Espacios físicos y funcionales
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/processes`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="git-network-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Procesos
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Templates y ejecuciones
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/shifts`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="time-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Control de asistencia
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Turnos y registro de entrada/salida
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/payment-methods`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="card-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Métodos de pago
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Configura cómo recibes pagos
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/suppliers`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="business-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Proveedores
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Gestiona tus proveedores de materia prima
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/purchase-orders`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="document-text-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Órdenes de compra
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Pedidos a proveedores
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/receipts`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="archive-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Recepciones
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Registro de llegada de mercancía
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/supplier-invoices`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="receipt-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Facturas de proveedor
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    Trazabilidad fiscal CFDI
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
           </View>
         </VrittCard>
 

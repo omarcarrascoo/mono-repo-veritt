@@ -33,6 +33,7 @@ import {
   ProductType,
 } from '@/types/inventory.types'
 import { getApiErrorMessage } from '@/utils/error.utils'
+import { markProductsStepCompleted, markRecipesStepCompleted } from '@/lib/update-onboarding'
 
 const PRODUCT_TYPE_OPTIONS: {
   label: string
@@ -72,12 +73,15 @@ export default function CreateProductScreen() {
   const [business, setBusiness] = useState<Business | null>(null)
   const [locations, setLocations] = useState<InventoryLocation[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
+  const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [name, setName] = useState('')
   const [type, setType] = useState<ProductType>('DIRECT')
-  const [category, setCategory] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [customCategory, setCustomCategory] = useState('')
+  const category = selectedCategory === '__CUSTOM__' ? customCategory : selectedCategory
   const [stockUnit, setStockUnit] = useState('unit')
   const [estimatedDailySalesVolume, setEstimatedDailySalesVolume] = useState('')
   const [minStock, setMinStock] = useState('')
@@ -101,15 +105,17 @@ export default function CreateProductScreen() {
       try {
         setIsLoadingData(true)
 
-        const [businessData, locationData, materialData] = await Promise.all([
+        const [businessData, locationData, materialData, categories] = await Promise.all([
           businessesApi.getById(businessId),
           inventoryApi.listLocations(businessId),
           inventoryApi.listMaterials(businessId),
+          inventoryApi.listCategories(businessId).catch(() => []),
         ])
 
         setBusiness(businessData)
         setLocations(locationData)
         setMaterials(materialData)
+        setExistingCategories(categories)
 
         const preferredLocation =
           locationData.find((item) => item.isPrimary) ?? locationData[0]
@@ -129,6 +135,15 @@ export default function CreateProductScreen() {
 
     loadFormData()
   }, [businessId])
+
+  const categoryOptions = useMemo(
+    () => [
+      { label: 'Sin categoría', value: '' },
+      ...existingCategories.map((c) => ({ label: c, value: c })),
+      { label: 'Nueva categoría...', value: '__CUSTOM__' },
+    ],
+    [existingCategories],
+  )
 
   const locationOptions = useMemo(
     () =>
@@ -399,6 +414,10 @@ export default function CreateProductScreen() {
         }
       }
 
+      await markProductsStepCompleted(businessId).catch(() => {})
+      if (type === 'RECIPE') {
+        await markRecipesStepCompleted(businessId).catch(() => {})
+      }
       router.replace(`/businesses/${businessId}/inventory`)
     } catch (error) {
       if (createdProduct) {
@@ -460,13 +479,23 @@ export default function CreateProductScreen() {
               disabled={isSubmitting}
             />
 
-            <VrittInput
+            <VrittSelect
               label="Categoría"
-              placeholder="Panadería"
-              value={category}
-              onChangeText={setCategory}
-              editable={!isSubmitting}
+              value={selectedCategory}
+              options={categoryOptions}
+              onChange={setSelectedCategory}
+              disabled={isSubmitting}
             />
+
+            {selectedCategory === '__CUSTOM__' && (
+              <VrittInput
+                label="Nueva categoría"
+                placeholder="Ej: Bebidas"
+                value={customCategory}
+                onChangeText={setCustomCategory}
+                editable={!isSubmitting}
+              />
+            )}
 
             <VrittInput
               label="Unidad de stock"

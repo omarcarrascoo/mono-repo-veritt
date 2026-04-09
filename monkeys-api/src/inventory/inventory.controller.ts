@@ -38,6 +38,14 @@ import {
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+  @Get('categories')
+  listCategories(
+    @Param('businessId') businessId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.inventoryService.listCategories(businessId, user.id);
+  }
+
   @Get('locations')
   listLocations(
     @Param('businessId') businessId: string,

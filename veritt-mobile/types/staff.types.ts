@@ -60,5 +60,6 @@ export interface CreateStaffProfileDto {
   assignedAreasJson?: Record<string, unknown>;
   systemAccessLevel?: SystemAccessLevel;
   username?: string;
+  password?: string;
   compensation?: CreateStaffCompensationDto;
 }

@@ -14,8 +14,21 @@ import { UpdatePayrollPaymentDto } from './dto/update-payroll-payment.dto';
 import { PayrollRepository } from './payroll.repository';
 
 const UPCOMING_WINDOW_DAYS = 45;
-const FUTURE_SYNC_WINDOW_DAYS = 120;
 const MANAGE_PAYROLL_ROLES = ['OWNER', 'ADMIN', 'SUPERVISOR', 'VERITT_STAFF'];
+const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
+function getSyncWindowDays(frequency: PayrollFrequency): number {
+  switch (frequency) {
+    case 'DAILY':
+      return 30;
+    case 'WEEKLY':
+      return 60;
+    case 'BIWEEKLY':
+      return 90;
+    default:
+      return 120;
+  }
+}
 
 type StaffWithCompensationSnapshot = {
   id: string;
@@ -35,10 +48,20 @@ type StaffWithCompensationSnapshot = {
 
 @Injectable()
 export class PayrollService {
+  private lastSyncMap = new Map<string, number>();
+
   constructor(
     private readonly payrollRepository: PayrollRepository,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  private async maybeSyncBusinessSchedule(businessId: string) {
+    const lastSync = this.lastSyncMap.get(businessId) ?? 0;
+    if (Date.now() - lastSync < SYNC_COOLDOWN_MS) return;
+
+    await this.syncBusinessSchedule(businessId);
+    this.lastSyncMap.set(businessId, Date.now());
+  }
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
     const membership = await this.payrollRepository.findMembership(businessId, userId);
@@ -131,9 +154,10 @@ export class PayrollService {
       return;
     }
 
+    const windowDays = getSyncWindowDays(staff.compensation.payrollFrequency);
     const firstPaymentDate = parseDateKey(staff.compensation.firstPaymentDate);
     const rangeStart = maxDateKey(todayDateKey, firstPaymentDate);
-    const rangeEnd = addDays(todayDateKey, FUTURE_SYNC_WINDOW_DAYS);
+    const rangeEnd = addDays(todayDateKey, windowDays);
     const dueDateKeys = generateDueDateKeys(
       {
         payrollFrequency: staff.compensation.payrollFrequency,
@@ -147,16 +171,16 @@ export class PayrollService {
       rangeEnd,
     );
 
-    for (const dueDateKey of dueDateKeys) {
-      await this.payrollRepository.upsertScheduledPayment({
-        businessId: staff.businessId,
-        staffProfileId: staff.id,
-        amount: String(staff.compensation.salaryAmount),
-        currency: staff.compensation.salaryCurrency,
-        payrollFrequency: staff.compensation.payrollFrequency,
-        dueDate: dateKeyToDate(dueDateKey),
-      });
-    }
+    const inputs = dueDateKeys.map((dueDateKey) => ({
+      businessId: staff.businessId,
+      staffProfileId: staff.id,
+      amount: String(staff.compensation!.salaryAmount),
+      currency: staff.compensation!.salaryCurrency,
+      payrollFrequency: staff.compensation!.payrollFrequency,
+      dueDate: dateKeyToDate(dueDateKey),
+    }));
+
+    await this.payrollRepository.upsertScheduledPaymentsBatch(inputs);
   }
 
   private async syncNotificationsForPayment(
@@ -233,9 +257,9 @@ export class PayrollService {
       dateKeyToDate(todayDateKey),
     );
 
-    for (const payment of payments) {
-      await this.syncNotificationsForPayment(payment, todayDateKey);
-    }
+    await Promise.all(
+      payments.map((payment) => this.syncNotificationsForPayment(payment, todayDateKey)),
+    );
   }
 
   async syncBusinessSchedule(businessId: string) {
@@ -279,6 +303,7 @@ export class PayrollService {
   }
 
   async syncStaffSchedule(businessId: string, staffId: string, actorUserId: string, changeReason?: string) {
+    this.lastSyncMap.delete(businessId);
     const staff = await this.payrollRepository.findStaffForSync(businessId, staffId);
 
     if (!staff) {
@@ -327,7 +352,7 @@ export class PayrollService {
 
   async getUpcomingPayments(businessId: string, userId: string) {
     await this.ensureBusinessAccess(businessId, userId);
-    await this.syncBusinessSchedule(businessId);
+    await this.maybeSyncBusinessSchedule(businessId);
 
     const business = await this.payrollRepository.findBusinessForSync(businessId);
 
@@ -360,7 +385,7 @@ export class PayrollService {
 
   async getPaymentHistory(businessId: string, userId: string) {
     await this.ensureBusinessAccess(businessId, userId);
-    await this.syncBusinessSchedule(businessId);
+    await this.maybeSyncBusinessSchedule(businessId);
 
     return {
       items: await this.payrollRepository.listPaymentHistory(businessId),
@@ -374,7 +399,7 @@ export class PayrollService {
     dto: UpdatePayrollPaymentDto,
   ) {
     await this.ensurePayrollManagementAccess(businessId, userId);
-    await this.syncBusinessSchedule(businessId);
+    await this.maybeSyncBusinessSchedule(businessId);
 
     const payment = await this.payrollRepository.findPaymentById(businessId, paymentId);
 
