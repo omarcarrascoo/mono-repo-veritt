@@ -1,140 +1,273 @@
-import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, ScrollView, StatusBar } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 
 import { useAuthStore } from '@/store/auth.store';
-import { VrittScreen } from '@/components/ui/VrittScreen';
-import { VrittHeader } from '@/components/ui/VrittHeader';
-import { VrittCard } from '@/components/ui/VrittCard';
-import { VrittButton } from '@/components/ui/VrittButton';
-import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel';
+import { useBusinessStore } from '@/store/business.store';
+import { useActiveBusiness } from '@/hooks/useActiveBusiness';
+import { useHomeData } from '@/hooks/useHomeData';
 
-function getFirstName(fullName?: string | null) {
-  if (!fullName?.trim()) {
-    return 'equipo';
-  }
+import { MANAGER_ROLES } from '@/types/business.types';
+import {
+  getDailyChainMoment,
+  getOperationalDateLabel,
+  getSemaphoreSteps,
+  getStageNumber,
+} from '@/lib/daily-chain-home';
+import {
+  getFirstName,
+  getGreeting,
+  getRoleLabel,
+} from '@/lib/home-greeting';
+import {
+  buildBento,
+  buildConfigModules,
+  buildNextMoves,
+  buildOperationModules,
+  buildTimeline,
+} from '@/lib/home-builders';
 
-  return fullName.trim().split(/\s+/)[0];
-}
+import { VrittLoader } from '@/components/ui/VrittLoader';
+import { VrittBusinessSwitcher } from '@/components/home/VrittBusinessSwitcher';
+import { VrittGreetingHeader } from '@/components/home/VrittGreetingHeader';
+import { VrittActiveBusinessPill } from '@/components/home/VrittActiveBusinessPill';
+import { VrittHomeEmptyState } from '@/components/home/VrittHomeEmptyState';
+import { VrittStageSection } from '@/components/home/sections/VrittStageSection';
+import { VrittBentoSection } from '@/components/home/sections/VrittBentoSection';
+import { VrittNextMoveSection } from '@/components/home/sections/VrittNextMoveSection';
+import { VrittModulesSection } from '@/components/home/sections/VrittModulesSection';
+import { VrittDayTimeline } from '@/components/home/VrittDayTimeline';
 
+const PAPER_BG = '#F5F2EA';
 
 export default function HomeScreen() {
   const user = useAuthStore((state) => state.user);
-  const firstName = getFirstName(user?.fullName);
 
-  const quickActions = [
-    {
-      title: 'Crear negocio',
-      description: 'Empieza con tu primer espacio operativo y deja la estructura lista.',
-      icon: 'add-circle-outline' as const,
-      onPress: () => router.push('/businesses/create'),
-    },
-    {
-      title: 'Ver negocios',
-      description: 'Entra a tus espacios actuales y revisa cómo va creciendo todo.',
-      icon: 'briefcase-outline' as const,
-      onPress: () => router.push('/(tabs)/businesses'),
-    },
-    {
-      title: 'Explorar ideas',
-      description: 'Usa la pestaña de explora como inspiración mientras aterrizamos más módulos.',
-      icon: 'sparkles-outline' as const,
-      onPress: () => router.push('/(tabs)/explore'),
-    },
-    {
-      title: 'Abrir perfil',
-      description: 'Revisa tu cuenta y cierra sesión desde un lugar más natural.',
-      icon: 'person-circle-outline' as const,
-      onPress: () => router.push('/(tabs)/profile'),
-    },
-  ];
+  const businesses = useBusinessStore((state) => state.businesses);
+  const isLoaded = useBusinessStore((state) => state.isLoaded);
+  const loadBusinesses = useBusinessStore((state) => state.loadBusinesses);
+  const setChainTone = useBusinessStore((state) => state.setChainTone);
+
+  const activeBusiness = useActiveBusiness();
+  const userRole = activeBusiness?.userRole ?? null;
+  const isManager = !!userRole && MANAGER_ROLES.includes(userRole);
+
+  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded) loadBusinesses();
+  }, [isLoaded, loadBusinesses]);
+
+  const {
+    chain,
+    dailySales,
+    activeStaffCount,
+    upcomingPayrollTotal,
+    isInitialLoading,
+    refresh,
+  } = useHomeData(activeBusiness?.id ?? null);
+
+  // Refresco al volver al Home (usa TTL de la caché internamente).
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  const moment = useMemo(
+    () =>
+      activeBusiness
+        ? getDailyChainMoment(activeBusiness.id, chain, isManager)
+        : null,
+    [activeBusiness, chain, isManager],
+  );
+
+  useEffect(() => {
+    if (activeBusiness?.id && moment) {
+      setChainTone(activeBusiness.id, moment.tone);
+    }
+  }, [activeBusiness?.id, moment?.tone, moment, setChainTone]);
+
+  const semaphoreSteps = useMemo(() => getSemaphoreSteps(chain), [chain]);
+  const timelineItems = useMemo(
+    () => buildTimeline(chain, dailySales),
+    [chain, dailySales],
+  );
+  const bentoItems = useMemo(
+    () =>
+      activeBusiness
+        ? buildBento(
+            activeBusiness.id,
+            dailySales,
+            upcomingPayrollTotal,
+            activeStaffCount,
+          )
+        : [],
+    [activeBusiness, dailySales, upcomingPayrollTotal, activeStaffCount],
+  );
+  const nextMoves = useMemo(
+    () =>
+      activeBusiness
+        ? buildNextMoves(activeBusiness.id, chain)
+        : [],
+    [activeBusiness, chain],
+  );
+  const operationModules = useMemo(
+    () => (activeBusiness ? buildOperationModules(activeBusiness.id) : []),
+    [activeBusiness],
+  );
+  const configModules = useMemo(
+    () => (activeBusiness ? buildConfigModules(activeBusiness.id) : []),
+    [activeBusiness],
+  );
+
+  const onNavigate = useCallback((route: string) => {
+    router.push(route as never);
+  }, []);
+
+  const firstName = useMemo(
+    () => getFirstName(user?.fullName),
+    [user?.fullName],
+  );
+  const greeting = useMemo(() => getGreeting(), []);
+  const roleLabel = useMemo(() => getRoleLabel(userRole), [userRole]);
+
+  const timelineEvents = useMemo(
+    () =>
+      timelineItems.map((t) => ({
+        key: t.key,
+        time: '',
+        title: t.title,
+        detail: t.detail,
+        state: t.state,
+        icon: t.icon,
+      })),
+    [timelineItems],
+  );
+
+  const handlePressAvatar = useCallback(() => {
+    router.push('/(tabs)/profile');
+  }, []);
+  const handleOpenSwitcher = useCallback(() => setIsSwitcherOpen(true), []);
+  const handleCloseSwitcher = useCallback(() => setIsSwitcherOpen(false), []);
+  const handleCreateBusiness = useCallback(() => {
+    router.push('/businesses/create');
+  }, []);
+  const handlePressAnalytics = useCallback(() => {
+    if (!activeBusiness) return;
+    router.push(`/businesses/${activeBusiness.id}/sales/analytics` as never);
+  }, [activeBusiness]);
+  const handlePressStageCta = useCallback(() => {
+    if (moment) router.push(moment.ctaRoute as never);
+  }, [moment]);
+  const handlePressChainDetail = useCallback(() => {
+    if (!activeBusiness) return;
+    router.push(`/businesses/${activeBusiness.id}/daily-chain` as never);
+  }, [activeBusiness]);
+
+  if (!isLoaded) {
+    return <VrittLoader />;
+  }
+
+  if (businesses.length === 0) {
+    return (
+      <VrittHomeEmptyState
+        firstName={firstName}
+        year={new Date().getFullYear()}
+        onCreateBusiness={handleCreateBusiness}
+      />
+    );
+  }
+
+  if (!activeBusiness || !moment) {
+    return <VrittLoader />;
+  }
+
+  const stageNumber = getStageNumber(chain);
+  const dateLabel = getOperationalDateLabel(chain?.operationalDate);
 
   return (
-    <VrittScreen scrollable>
-      <View className="gap-8">
-        <VrittHeader
-          title={`Hola, ${firstName}.`}
-          subtitle="Este inicio debe funcionar como una base agradable: te orienta y te da accesos rápidos."
+    <>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: PAPER_BG }}
+        contentContainerStyle={{
+          paddingHorizontal: 18,
+          paddingTop: Platform.OS === 'ios' ? 80 : 72,
+          paddingBottom: 160,
+          gap: 16,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <StatusBar barStyle="dark-content" backgroundColor={PAPER_BG} />
+
+        <VrittGreetingHeader
+          greeting={greeting}
+          firstName={firstName}
+          onPressAvatar={handlePressAvatar}
         />
 
-        <VrittCard className="gap-5 overflow-hidden">
-          <View className="flex-row items-start justify-between gap-4">
-            <View className="flex-1 gap-3">
-              <VrittSectionLabel>Listo para arrancar</VrittSectionLabel>
-              <Text className="text-[26px] font-extrabold leading-[30px] text-veritt-text">
-                Tu tablero base ya está en marcha.
-              </Text>
-              <Text className="text-[15px] leading-[24px] text-veritt-muted">
-                Aunque todavía estamos en una etapa temprana, aquí ya tienes una
-                llegada más útil: contexto rápido y acciones claras mientras definimos el resto.
-              </Text>
-            </View>
+        <VrittActiveBusinessPill
+          businessName={activeBusiness.name}
+          roleLabel={roleLabel}
+          canSwitch={businesses.length > 1}
+          onPress={handleOpenSwitcher}
+        />
 
-            <View className="h-14 w-14 items-center justify-center rounded-full border border-veritt-border bg-black/30">
-              <Ionicons name="rocket-outline" size={24} color="#FFFFFF" />
-            </View>
-          </View>
+        <VrittStageSection
+          moment={moment}
+          stepNumber={stageNumber}
+          dateLabel={dateLabel}
+          semaphoreSteps={semaphoreSteps}
+          isLoading={isInitialLoading}
+          onPressCta={handlePressStageCta}
+          onPressChainDetail={handlePressChainDetail}
+        />
 
-          <View className="rounded-[24px] border border-[#232323] bg-[#080808] px-4 py-4">
-            <Text className="text-[11px] font-bold uppercase tracking-[1.2px] text-veritt-mutedSoft">
-              Siguiente mejor paso
-            </Text>
-            <Text className="mt-2 text-[18px] font-bold text-veritt-text">
-              Crea un negocio y empieza a poblar el sistema con datos reales.
-            </Text>
-            <Text className="mt-2 text-[14px] leading-[22px] text-veritt-muted">
-              En cuanto exista el primer negocio, este home puede convertirse en
-              un dashboard de verdad sin cambiar su estructura general.
-            </Text>
-          </View>
+        <VrittBentoSection
+          items={bentoItems}
+          onNavigate={onNavigate}
+          onPressAnalytics={handlePressAnalytics}
+        />
 
-          <View className="gap-3 md:flex-row">
-            <VrittButton
-              label="Crear negocio"
-              className="md:flex-1"
-              onPress={() => router.push('/businesses/create')}
-            />
-            <VrittButton
-              label="Ir a perfil"
-              variant="secondary"
-              className="md:flex-1"
-              onPress={() => router.push('/(tabs)/profile')}
-            />
-          </View>
-        </VrittCard>
+        <VrittNextMoveSection
+          tone={moment.tone}
+          items={nextMoves}
+          onNavigate={onNavigate}
+        />
 
-        <View className="gap-4">
-          <VrittSectionLabel>Acciones rápidas</VrittSectionLabel>
+        <VrittDayTimeline events={timelineEvents} />
 
-          <View className="gap-4 md:flex-row md:flex-wrap">
-            {quickActions.map((action) => (
-              <TouchableOpacity
-                key={action.title}
-                activeOpacity={0.88}
-                className="md:min-w-[48%] md:flex-1"
-                onPress={action.onPress}
-              >
-                <VrittCard className="gap-4">
-                  <View className="h-12 w-12 items-center justify-center rounded-full border border-veritt-border bg-black/30">
-                    <Ionicons name={action.icon} size={22} color="#FFFFFF" />
-                  </View>
+        <VrittModulesSection
+          eyebrow="Operación"
+          title="Módulos del negocio"
+          items={operationModules}
+          variant="paper"
+          onNavigate={onNavigate}
+        />
 
-                  <View className="gap-2">
-                    <Text className="text-[18px] font-bold text-veritt-text">
-                      {action.title}
-                    </Text>
-                    <Text className="text-[14px] leading-[22px] text-veritt-muted">
-                      {action.description}
-                    </Text>
-                  </View>
-                </VrittCard>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        <VrittModulesSection
+          eyebrow="Configuración"
+          title="Ajustes del espacio"
+          items={configModules}
+          variant="ink"
+          onNavigate={onNavigate}
+        />
+      </ScrollView>
 
-      </View>
-    </VrittScreen>
+      <VrittBusinessSwitcher
+        visible={isSwitcherOpen}
+        businesses={businesses}
+        activeBusinessId={activeBusiness.id}
+        onClose={handleCloseSwitcher}
+        onSelect={(id) => {
+          useBusinessStore.getState().setActiveBusiness(id);
+          setIsSwitcherOpen(false);
+        }}
+        onCreateNew={() => {
+          setIsSwitcherOpen(false);
+          router.push('/businesses/create');
+        }}
+      />
+    </>
   );
 }

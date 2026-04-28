@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth.store';
 import { useIsDesktopWeb } from '@/hooks/useIsDesktopWeb';
 import { VrittTabsWebHeader } from '@/components/ui/VrittTabsWebHeader';
+import { VrittFloatingTabBar } from '@/components/navigation/VrittFloatingTabBar';
 
 export default function TabsLayout() {
   const isHydrated = useAuthStore((state) => state.isHydrated);
@@ -25,6 +26,7 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      tabBar={isDesktopWeb ? undefined : (props) => <VrittFloatingTabBar {...props} />}
       screenOptions={({ route }) => ({
         headerShown: isDesktopWeb,
         header: isDesktopWeb
