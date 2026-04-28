@@ -7,6 +7,10 @@ export type BusinessType =
   | 'RETAIL'
   | 'OTHER';
 
+export type MembershipRole = 'OWNER' | 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VERITT_STAFF';
+
+export const MANAGER_ROLES: MembershipRole[] = ['OWNER', 'ADMIN', 'SUPERVISOR', 'VERITT_STAFF'];
+
 export interface Business {
   id: string;
   name: string;
@@ -20,6 +24,7 @@ export interface Business {
   operationalScheduleJson?: Record<string, any>;
   operationalDayCutoffHour: number;
   inventoryLocations?: InventoryLocation[];
+  userRole?: MembershipRole | null;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 
 import { businessesApi } from '@/api/modules/businesses.api';
 import { Business } from '@/types/business.types';
+import { useBusinessStore } from '@/store/business.store';
 import { getApiErrorMessage } from '@/utils/error.utils';
 
 import { VrittScreen } from '@/components/ui/VrittScreen';
@@ -17,12 +18,15 @@ import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel';
 export default function BusinessesScreen() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const loadStore = useBusinessStore((s) => s.loadBusinesses);
 
   const loadBusinesses = async () => {
     try {
       setIsLoading(true);
       const data = await businessesApi.getMine();
       setBusinesses(data);
+      // Cache businesses with roles in store
+      loadStore();
     } catch (error) {
       Alert.alert('Error', getApiErrorMessage(error, 'No pudimos cargar tus negocios.'));
     } finally {

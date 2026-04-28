@@ -65,6 +65,11 @@ enum NotificationType {
   MATERIAL_OUT_OF_STOCK
   PRODUCT_LOW_STOCK
   PRODUCT_OUT_OF_STOCK
+  PRICE_ALERT
+  DAILY_OPENING_PENDING
+  DAILY_DEVIATION_ALERT
+  DAILY_RECONCILIATION_DISCREPANCY
+  DAILY_CHAIN_BLOCKED
 }
 
 enum SystemAccessLevel {
@@ -244,6 +249,11 @@ model Business {
   purchaseOrders           PurchaseOrder[]
   receipts                 Receipt[]
   supplierInvoices         SupplierInvoice[]
+  dailyOpenings            DailyInventoryOpening[]
+  dailyClosings            DailyInventoryClosing[]
+  deviationReports         DailyDeviationReport[]
+  cashReconciliations      DailyCashReconciliation[]
+  dailyOperationCloses     DailyOperationClose[]
 }
 
 model InventoryLocation {
@@ -263,6 +273,8 @@ model InventoryLocation {
   productLots       ProductLot[]
   productMovements  ProductStockMovement[]
   receipts          Receipt[]
+  dailyOpenings     DailyInventoryOpening[]
+  dailyClosings     DailyInventoryClosing[]
 
   @@unique([businessId, name])
   @@index([businessId, status, createdAt])
@@ -290,6 +302,9 @@ model Material {
   theoreticalConsumptions  TheoreticalConsumption[]
   purchaseOrderItems       PurchaseOrderItem[]
   receiptItems             ReceiptItem[]
+  openingItems             DailyInventoryOpeningItem[]
+  closingItems             DailyInventoryClosingItem[]
+  deviationItems           DeviationItem[]
 
   @@unique([businessId, name])
   @@unique([businessId, sku])
@@ -851,8 +866,9 @@ model PaymentMethod {
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
-  business     Business      @relation(fields: [businessId], references: [id])
-  salePayments SalePayment[]
+  business                 Business                 @relation(fields: [businessId], references: [id])
+  salePayments             SalePayment[]
+  terminalReconciliations  TerminalReconciliation[]
 
   @@unique([businessId, name])
   @@index([businessId, status])
@@ -1110,4 +1126,278 @@ model SupplierInvoice {
 
   @@index([businessId, status])
   @@index([supplierId])
+}
+
+// ── Phase 4: Cadena Diaria (FAI → FCI → FID → FAF → FOP) ────────────
+
+enum DailyOpeningStatus {
+  PENDING
+  AUTHORIZED
+  REJECTED
+}
+
+enum DailyClosingStatus {
+  PENDING
+  AUTHORIZED
+  REJECTED
+  COMPLETED
+}
+
+enum DeviationReportStatus {
+  PENDING_CLASSIFICATION
+  CLASSIFIED
+  APPROVED
+}
+
+enum DeviationCause {
+  ERROR
+  WASTE
+  THEFT
+  ADJUSTMENT
+  OVERPRODUCTION
+  UNDERPRODUCTION
+  OTHER
+}
+
+enum ReconciliationStatus {
+  PENDING
+  PENDING_REVIEW
+  RECONCILED
+  DISCREPANCY
+  REJECTED
+}
+
+enum DailyOperationStatus {
+  PENDING
+  SIGNED
+  BLOCKED
+}
+
+enum FOPValidationType {
+  INVENTORY
+  CASH
+  PROCESSES
+  HOURS
+}
+
+// 4.1 FAI — Apertura de Inventario
+
+model DailyInventoryOpening {
+  id                  String              @id @default(uuid())
+  businessId          String
+  locationId          String
+  operationalDate     DateTime            @db.Date
+  status              DailyOpeningStatus  @default(PENDING)
+  authorizedByUserId  String?
+  authorizedAt        DateTime?
+  rejectedReason      String?
+  createdByUserId     String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  business    Business                    @relation(fields: [businessId], references: [id])
+  location    InventoryLocation           @relation(fields: [locationId], references: [id])
+  items       DailyInventoryOpeningItem[]
+
+  @@index([businessId, locationId, operationalDate])
+  @@index([businessId, operationalDate])
+}
+
+model DailyInventoryOpeningItem {
+  id                      String  @id @default(uuid())
+  openingId               String
+  materialId              String
+  countedQuantity         Decimal @db.Decimal(14, 4)
+  previousClosingQuantity Decimal @default(0) @db.Decimal(14, 4)
+  systemQuantity          Decimal @default(0) @db.Decimal(14, 4)
+  variance                Decimal @default(0) @db.Decimal(14, 4)
+  varianceValueMXN        Decimal @default(0) @db.Decimal(14, 4)
+  varianceNote            String?
+
+  opening  DailyInventoryOpening @relation(fields: [openingId], references: [id], onDelete: Cascade)
+  material Material              @relation(fields: [materialId], references: [id])
+
+  @@unique([openingId, materialId])
+}
+
+// 4.2 FCI — Cierre de Inventario
+
+model DailyInventoryClosing {
+  id                  String              @id @default(uuid())
+  businessId          String
+  locationId          String
+  operationalDate     DateTime            @db.Date
+  status              DailyClosingStatus  @default(PENDING)
+  completedByUserId   String?
+  completedAt         DateTime?
+  authorizedByUserId  String?
+  authorizedAt        DateTime?
+  rejectedReason      String?
+  createdByUserId     String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  business    Business                    @relation(fields: [businessId], references: [id])
+  location    InventoryLocation           @relation(fields: [locationId], references: [id])
+  items       DailyInventoryClosingItem[]
+
+  @@index([businessId, locationId, operationalDate])
+  @@index([businessId, operationalDate])
+}
+
+model DailyInventoryClosingItem {
+  id                String  @id @default(uuid())
+  closingId         String
+  materialId        String
+  countedQuantity   Decimal @db.Decimal(14, 4)
+  openingQuantity   Decimal @default(0) @db.Decimal(14, 4)
+  receivedQuantity  Decimal @default(0) @db.Decimal(14, 4)
+  realConsumption   Decimal @default(0) @db.Decimal(14, 4)
+
+  closing  DailyInventoryClosing @relation(fields: [closingId], references: [id], onDelete: Cascade)
+  material Material              @relation(fields: [materialId], references: [id])
+
+  @@unique([closingId, materialId])
+}
+
+// 4.3 FID — Desviaciones
+
+model DailyDeviationReport {
+  id                      String                @id @default(uuid())
+  businessId              String
+  operationalDate         DateTime              @db.Date
+  status                  DeviationReportStatus @default(PENDING_CLASSIFICATION)
+  totalDeviationValueMXN  Decimal               @default(0) @db.Decimal(14, 4)
+  approvedByUserId        String?
+  approvedAt              DateTime?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  business Business        @relation(fields: [businessId], references: [id])
+  items    DeviationItem[]
+
+  @@unique([businessId, operationalDate])
+  @@index([businessId, operationalDate])
+}
+
+model DeviationItem {
+  id                      String          @id @default(uuid())
+  reportId                String
+  materialId              String
+  theoreticalConsumption  Decimal         @db.Decimal(14, 4)
+  realConsumption         Decimal         @db.Decimal(14, 4)
+  deviationQuantity       Decimal         @db.Decimal(14, 4)
+  deviationValueMXN       Decimal         @db.Decimal(14, 4)
+  cause                   DeviationCause?
+  classifiedByUserId      String?
+  note                    String?
+
+  report   DailyDeviationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  material Material              @relation(fields: [materialId], references: [id])
+
+  @@unique([reportId, materialId])
+}
+
+// 4.4 FAF — Arqueo Financiero
+
+model DailyCashReconciliation {
+  id                  String               @id @default(uuid())
+  businessId          String
+  operationalDate     DateTime             @db.Date
+  status              ReconciliationStatus @default(PENDING)
+  totalExpected       Decimal              @default(0) @db.Decimal(14, 4)
+  totalCounted        Decimal              @default(0) @db.Decimal(14, 4)
+  difference          Decimal              @default(0) @db.Decimal(14, 4)
+  reconciledByUserId  String?
+  reconciledAt        DateTime?
+  approvedByUserId    String?
+  approvedAt          DateTime?
+  rejectedByUserId    String?
+  rejectedAt          DateTime?
+  rejectedReason      String?
+  createdByUserId     String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  business                Business                  @relation(fields: [businessId], references: [id])
+  cashDenominations       CashDenominationCount[]
+  terminalReconciliations TerminalReconciliation[]
+  transferReconciliations TransferReconciliation[]
+
+  @@index([businessId, operationalDate])
+}
+
+model CashDenominationCount {
+  id                String  @id @default(uuid())
+  reconciliationId  String
+  denomination      Decimal @db.Decimal(10, 2)
+  quantity          Int
+  subtotal          Decimal @db.Decimal(14, 4)
+
+  reconciliation DailyCashReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+
+  @@unique([reconciliationId, denomination])
+}
+
+model TerminalReconciliation {
+  id                String  @id @default(uuid())
+  reconciliationId  String
+  paymentMethodId   String
+  expectedTotal     Decimal @db.Decimal(14, 4)
+  reportedTotal     Decimal @db.Decimal(14, 4)
+  reference         String?
+  difference        Decimal @db.Decimal(14, 4)
+
+  reconciliation DailyCashReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  paymentMethod  PaymentMethod           @relation(fields: [paymentMethodId], references: [id])
+
+  @@unique([reconciliationId, paymentMethodId])
+}
+
+model TransferReconciliation {
+  id                String  @id @default(uuid())
+  reconciliationId  String
+  expectedTotal     Decimal @db.Decimal(14, 4)
+  reportedTotal     Decimal @db.Decimal(14, 4)
+  folioReferences   String?
+  difference        Decimal @db.Decimal(14, 4)
+
+  reconciliation DailyCashReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+}
+
+// 4.5 FOP — Operacion y Procesos
+
+model DailyOperationClose {
+  id                       String               @id @default(uuid())
+  businessId               String
+  operationalDate          DateTime             @db.Date
+  status                   DailyOperationStatus @default(PENDING)
+  signedByUserId           String?
+  signedAt                 DateTime?
+  signedWithDiscrepancy    Boolean              @default(false)
+  discrepancyJustification String?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  business        Business              @relation(fields: [businessId], references: [id])
+  validationItems FOPValidationItem[]
+
+  @@unique([businessId, operationalDate])
+  @@index([businessId, operationalDate])
+}
+
+model FOPValidationItem {
+  id                String            @id @default(uuid())
+  fopId             String
+  validationType    FOPValidationType
+  label             String
+  operatorValue     Decimal           @db.Decimal(14, 4)
+  systemValue       Decimal           @db.Decimal(14, 4)
+  difference        Decimal           @db.Decimal(14, 4)
+  isWithinThreshold Boolean           @default(false)
+  resolution        String?
+
+  fop DailyOperationClose @relation(fields: [fopId], references: [id], onDelete: Cascade)
+
+  @@index([fopId])
 }

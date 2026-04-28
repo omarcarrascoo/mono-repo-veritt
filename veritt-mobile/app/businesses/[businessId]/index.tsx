@@ -590,6 +590,27 @@ export default function BusinessDetailScreen() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
             </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
+              activeOpacity={0.9}
+              onPress={() => router.push(`/businesses/${business.id}/daily-chain`)}
+            >
+              <View className="flex-row items-center gap-3">
+                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
+                  <Ionicons name="calendar-outline" size={20} color="#000000" />
+                </View>
+                <View>
+                  <Text className="text-[16px] font-bold text-veritt-text">
+                    Cadena diaria
+                  </Text>
+                  <Text className="mt-1 text-[13px] text-veritt-muted">
+                    FAI · FCI · FID · FAF · FOP
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
+            </TouchableOpacity>
           </View>
         </VrittCard>
 

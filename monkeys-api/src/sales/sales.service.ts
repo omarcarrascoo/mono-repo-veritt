@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { SalesRepository } from './sales.repository';
+import { DailyChainService } from '../daily-chain/daily-chain.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 
 type Tx = Prisma.TransactionClient;
@@ -18,7 +19,10 @@ const toNumber = (value: Prisma.Decimal | number | string | null | undefined) =>
 
 @Injectable()
 export class SalesService {
-  constructor(private readonly salesRepository: SalesRepository) {}
+  constructor(
+    private readonly salesRepository: SalesRepository,
+    private readonly dailyChainService: DailyChainService,
+  ) {}
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
     const membership = await this.salesRepository.findMembership(businessId, userId);
@@ -38,6 +42,14 @@ export class SalesService {
 
   async create(businessId: string, userId: string, dto: CreateSaleDto) {
     await this.ensureBusinessAccess(businessId, userId);
+
+    // Check if the operational day is open (FAI authorized)
+    const dayOpen = await this.dailyChainService.isDayOpen(businessId);
+    if (!dayOpen) {
+      throw new BadRequestException(
+        'El día operativo no está abierto. Autoriza la apertura (FAI) primero.',
+      );
+    }
 
     // Validate operator
     const operator = await this.salesRepository.findStaffProfile(dto.operatorStaffId);

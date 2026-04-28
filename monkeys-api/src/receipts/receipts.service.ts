@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { ReceiptsRepository } from './receipts.repository';
 import { NotificationsService } from '../notifications/notifications.service';
+import { DailyChainService } from '../daily-chain/daily-chain.service';
 import { CreateReceiptDto } from './dto/create-receipt.dto';
 import { CancelReceiptDto } from './dto/cancel-receipt.dto';
 
@@ -23,6 +24,7 @@ export class ReceiptsService {
   constructor(
     private readonly receiptsRepository: ReceiptsRepository,
     private readonly notificationsService: NotificationsService,
+    private readonly dailyChainService: DailyChainService,
   ) {}
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
@@ -35,6 +37,14 @@ export class ReceiptsService {
 
   async create(businessId: string, userId: string, dto: CreateReceiptDto) {
     await this.ensureBusinessAccess(businessId, userId);
+
+    // Check if the operational day is open (FAI authorized)
+    const dayOpen = await this.dailyChainService.isDayOpen(businessId);
+    if (!dayOpen) {
+      throw new BadRequestException(
+        'El día operativo no está abierto. Autoriza la apertura (FAI) primero.',
+      );
+    }
 
     // Validate location
     const location = await this.receiptsRepository.findLocation(dto.locationId);
