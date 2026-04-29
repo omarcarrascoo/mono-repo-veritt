@@ -351,7 +351,7 @@ export class PayrollService {
   }
 
   async getUpcomingPayments(businessId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensurePayrollManagementAccess(businessId, userId);
     await this.maybeSyncBusinessSchedule(businessId);
 
     const business = await this.payrollRepository.findBusinessForSync(businessId);
@@ -384,7 +384,7 @@ export class PayrollService {
   }
 
   async getPaymentHistory(businessId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensurePayrollManagementAccess(businessId, userId);
     await this.maybeSyncBusinessSchedule(businessId);
 
     return {

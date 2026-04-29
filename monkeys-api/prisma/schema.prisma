@@ -211,6 +211,8 @@ model User {
   purchaseOrders     PurchaseOrder[]      @relation("PurchaseOrderCreator")
   receiptsReceived   Receipt[]            @relation("ReceiptReceiver")
   receiptsCancelled  Receipt[]            @relation("ReceiptCanceller")
+  receiptsAuthorized Receipt[]            @relation("ReceiptAuthorizer")
+  receiptsRejected   Receipt[]            @relation("ReceiptRejecter")
   invoicesVerified   SupplierInvoice[]    @relation("InvoiceVerifier")
   invoicesDeleted    SupplierInvoice[]    @relation("InvoiceDeleter")
 }
@@ -981,9 +983,12 @@ enum PurchaseOrderStatus {
 }
 
 enum ReceiptStatus {
+  DRAFT
+  PENDING_REVIEW
   COMPLETED
   PARTIAL
   CANCELLED
+  REJECTED
 }
 
 enum SupplierInvoiceStatus {
@@ -1066,6 +1071,11 @@ model Receipt {
   cancellationComment String?
   cancelledByUserId   String?
   cancelledAt         DateTime?
+  authorizedByUserId  String?
+  authorizedAt        DateTime?
+  rejectedByUserId    String?
+  rejectedAt          DateTime?
+  rejectionReason     String?
   receivedAt          DateTime      @default(now())
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
@@ -1074,11 +1084,14 @@ model Receipt {
   purchaseOrder PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id])
   receivedBy    User              @relation("ReceiptReceiver", fields: [receivedByUserId], references: [id])
   cancelledBy   User?             @relation("ReceiptCanceller", fields: [cancelledByUserId], references: [id])
+  authorizedBy  User?             @relation("ReceiptAuthorizer", fields: [authorizedByUserId], references: [id])
+  rejectedBy    User?             @relation("ReceiptRejecter", fields: [rejectedByUserId], references: [id])
   location      InventoryLocation @relation(fields: [locationId], references: [id])
   items         ReceiptItem[]
   invoice       SupplierInvoice?
 
   @@index([businessId])
+  @@index([businessId, status])
   @@index([purchaseOrderId])
 }
 

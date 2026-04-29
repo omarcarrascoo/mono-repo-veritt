@@ -17,16 +17,16 @@ const round4 = (value: number) => Number(value.toFixed(4));
 export class PurchaseOrdersService {
   constructor(private readonly poRepository: PurchaseOrdersRepository) {}
 
-  private async ensureBusinessAccess(businessId: string, userId: string) {
+  private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.poRepository.findMembership(businessId, userId);
-    if (!membership) {
-      throw new ForbiddenException('You do not belong to this business');
+    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
     return membership;
   }
 
   async create(businessId: string, userId: string, dto: CreatePurchaseOrderDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
 
     // Validate supplier
     const supplier = await this.poRepository.findSupplier(dto.supplierId);
@@ -74,12 +74,12 @@ export class PurchaseOrdersService {
   }
 
   async findAll(businessId: string, userId: string, filters: { status?: string; supplierId?: string }) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     return this.poRepository.findAll(businessId, filters);
   }
 
   async findOne(businessId: string, poId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const po = await this.poRepository.findOne(poId);
     if (!po || po.businessId !== businessId) {
       throw new NotFoundException('Purchase order not found');
@@ -88,7 +88,7 @@ export class PurchaseOrdersService {
   }
 
   async update(businessId: string, poId: string, userId: string, dto: UpdatePurchaseOrderDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const po = await this.poRepository.findOne(poId);
     if (!po || po.businessId !== businessId) {
       throw new NotFoundException('Purchase order not found');
@@ -100,7 +100,7 @@ export class PurchaseOrdersService {
   }
 
   async send(businessId: string, poId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const po = await this.poRepository.findOne(poId);
     if (!po || po.businessId !== businessId) {
       throw new NotFoundException('Purchase order not found');
@@ -112,7 +112,7 @@ export class PurchaseOrdersService {
   }
 
   async cancel(businessId: string, poId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const po = await this.poRepository.findOne(poId);
     if (!po || po.businessId !== businessId) {
       throw new NotFoundException('Purchase order not found');

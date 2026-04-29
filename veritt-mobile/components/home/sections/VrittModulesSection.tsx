@@ -33,6 +33,8 @@ function Component({
     [items, onNavigate],
   );
 
+  if (modules.length === 0) return null;
+
   return (
     <VrittModuleList
       eyebrow={eyebrow}

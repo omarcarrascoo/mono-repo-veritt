@@ -37,13 +37,13 @@ const STATE_VISUALS: Record<
     timeLabel: 'Hecho',
   },
   active: {
-    dotBg: '#0A0A0A',
+    dotBg: '#0B0E12',
     dotInk: '#F5F2EA',
-    dotBorder: '#0A0A0A',
+    dotBorder: '#0B0E12',
     line: 'rgba(10,10,10,0.14)',
     title: '#0A0A0A',
     detail: 'rgba(10,10,10,0.55)',
-    time: '#0A0A0A',
+    time: '#0B0E12',
     timeLabel: 'En curso',
   },
   review: {

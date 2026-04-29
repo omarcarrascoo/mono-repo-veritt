@@ -13,6 +13,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ReceiptsService } from './receipts.service';
 import { CreateReceiptDto } from './dto/create-receipt.dto';
 import { CancelReceiptDto } from './dto/cancel-receipt.dto';
+import { RejectReceiptDto } from './dto/reject-receipt.dto';
 
 @Controller('businesses/:businessId/receipts')
 @UseGuards(JwtAuthGuard)
@@ -56,5 +57,24 @@ export class ReceiptsController {
     @Body() dto: CancelReceiptDto,
   ) {
     return this.receiptsService.cancel(businessId, receiptId, user.id, dto);
+  }
+
+  @Post(':receiptId/authorize')
+  authorize(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Param('receiptId', ParseUUIDPipe) receiptId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.receiptsService.authorize(businessId, receiptId, user.id);
+  }
+
+  @Post(':receiptId/reject')
+  reject(
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Param('receiptId', ParseUUIDPipe) receiptId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: RejectReceiptDto,
+  ) {
+    return this.receiptsService.reject(businessId, receiptId, user.id, dto.reason);
   }
 }

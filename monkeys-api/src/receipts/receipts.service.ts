@@ -27,6 +27,8 @@ export class ReceiptsService {
     private readonly dailyChainService: DailyChainService,
   ) {}
 
+  private readonly MANAGER_ROLES = ['OWNER', 'ADMIN', 'VERITT_STAFF'];
+
   private async ensureBusinessAccess(businessId: string, userId: string) {
     const membership = await this.receiptsRepository.findMembership(businessId, userId);
     if (!membership) {
@@ -35,10 +37,19 @@ export class ReceiptsService {
     return membership;
   }
 
-  async create(businessId: string, userId: string, dto: CreateReceiptDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+  private async ensureManagementAccess(businessId: string, userId: string) {
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+    if (!this.MANAGER_ROLES.includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+    return membership;
+  }
 
-    // Check if the operational day is open (FAI authorized)
+  private async validateReceiptContext(
+    businessId: string,
+    userId: string,
+    dto: CreateReceiptDto,
+  ) {
     const dayOpen = await this.dailyChainService.isDayOpen(businessId);
     if (!dayOpen) {
       throw new BadRequestException(
@@ -46,13 +57,11 @@ export class ReceiptsService {
       );
     }
 
-    // Validate location
     const location = await this.receiptsRepository.findLocation(dto.locationId);
     if (!location || location.businessId !== businessId) {
       throw new NotFoundException('Location not found in this business');
     }
 
-    // Validate purchase order if provided
     let po: Awaited<ReturnType<typeof this.receiptsRepository.findPurchaseOrder>> | null = null;
     if (dto.purchaseOrderId) {
       po = await this.receiptsRepository.findPurchaseOrder(dto.purchaseOrderId);
@@ -62,7 +71,6 @@ export class ReceiptsService {
       if (!['SENT', 'PARTIALLY_RECEIVED'].includes(po.status)) {
         throw new BadRequestException('Purchase order is not in a receivable status');
       }
-      // Separation of duties: receiver must be different from PO creator
       if (po.createdByUserId === userId) {
         throw new ForbiddenException(
           'The person receiving cannot be the same person who created the purchase order',
@@ -70,13 +78,26 @@ export class ReceiptsService {
       }
     }
 
-    // Validate materials
     for (const item of dto.items) {
       const material = await this.receiptsRepository.findMaterial(item.materialId);
       if (!material || material.businessId !== businessId) {
         throw new NotFoundException(`Material not found: ${item.materialId}`);
       }
     }
+
+    return { po };
+  }
+
+  async create(businessId: string, userId: string, dto: CreateReceiptDto) {
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+    const isManager = this.MANAGER_ROLES.includes(membership.role);
+
+    // OPERATOR/SUPERVISOR: crea borrador que requiere autorización.
+    if (!isManager) {
+      return this.createDraft(businessId, userId, dto);
+    }
+
+    const { po } = await this.validateReceiptContext(businessId, userId, dto);
 
     // Execute transaction
     const result = await this.receiptsRepository.prismaClient.$transaction(async (tx: Tx) => {
@@ -88,6 +109,9 @@ export class ReceiptsService {
           receivedByUserId: userId,
           locationId: dto.locationId,
           notes: dto.notes,
+          status: 'COMPLETED',
+          authorizedByUserId: userId,
+          authorizedAt: new Date(),
         },
       });
 
@@ -233,6 +257,215 @@ export class ReceiptsService {
     }
 
     return this.receiptsRepository.findOne(result.id);
+  }
+
+  /**
+   * OPERATOR/SUPERVISOR crean un receipt en PENDING_REVIEW: guarda los ítems pero
+   * NO mueve inventario ni cambia el PO. Se queda pendiente de autorización.
+   */
+  async createDraft(businessId: string, userId: string, dto: CreateReceiptDto) {
+    await this.ensureBusinessAccess(businessId, userId);
+    await this.validateReceiptContext(businessId, userId, dto);
+
+    const receipt = await this.receiptsRepository.prismaClient.$transaction(async (tx: Tx) => {
+      const created = await tx.receipt.create({
+        data: {
+          businessId,
+          purchaseOrderId: dto.purchaseOrderId,
+          receivedByUserId: userId,
+          locationId: dto.locationId,
+          notes: dto.notes,
+          status: 'PENDING_REVIEW',
+        },
+      });
+
+      for (const item of dto.items) {
+        await tx.receiptItem.create({
+          data: {
+            receiptId: created.id,
+            materialId: item.materialId,
+            quantityReceived: item.quantityReceived,
+            actualUnitCost: item.actualUnitCost,
+            lotId: null,
+          },
+        });
+      }
+
+      return created;
+    });
+
+    return this.receiptsRepository.findOne(receipt.id);
+  }
+
+  /**
+   * MANAGER autoriza un borrador: ejecuta los movimientos de inventario
+   * (crear lotes, stock movements, actualizar costos, cerrar PO si aplica).
+   */
+  async authorize(businessId: string, receiptId: string, userId: string) {
+    await this.ensureManagementAccess(businessId, userId);
+
+    const receipt = await this.receiptsRepository.findOne(receiptId);
+    if (!receipt || receipt.businessId !== businessId) {
+      throw new NotFoundException('Receipt not found');
+    }
+    if (receipt.status !== 'PENDING_REVIEW') {
+      throw new BadRequestException('Only pending receipts can be authorized');
+    }
+    if (receipt.receivedByUserId === userId) {
+      throw new ForbiddenException(
+        'No puedes autorizar una recepción que tú mismo registraste',
+      );
+    }
+
+    const dayOpen = await this.dailyChainService.isDayOpen(businessId);
+    if (!dayOpen) {
+      throw new BadRequestException(
+        'El día operativo no está abierto. Autoriza la apertura (FAI) primero.',
+      );
+    }
+
+    let po: Awaited<ReturnType<typeof this.receiptsRepository.findPurchaseOrder>> | null = null;
+    if (receipt.purchaseOrderId) {
+      po = await this.receiptsRepository.findPurchaseOrder(receipt.purchaseOrderId);
+      if (!po) {
+        throw new NotFoundException('Purchase order not found');
+      }
+    }
+
+    await this.receiptsRepository.prismaClient.$transaction(async (tx: Tx) => {
+      for (const item of receipt.items) {
+        const qty = toNumber(item.quantityReceived);
+        const unitCost = toNumber(item.actualUnitCost);
+        const totalCost = round4(qty * unitCost);
+
+        const balanceAgg = await tx.materialStockMovement.aggregate({
+          where: { materialId: item.materialId, locationId: receipt.locationId },
+          _sum: { quantityDelta: true },
+        });
+        const currentBalance = toNumber(balanceAgg._sum.quantityDelta);
+
+        const lot = await tx.materialLot.create({
+          data: {
+            businessId,
+            materialId: item.materialId,
+            locationId: receipt.locationId,
+            sourceType: 'PURCHASE',
+            originalQuantity: qty,
+            remainingQuantity: qty,
+            unitCost,
+            totalCost,
+            currency: 'MXN',
+            referenceType: 'Receipt',
+            referenceId: receipt.id,
+            createdByUserId: userId,
+          },
+        });
+
+        await tx.materialStockMovement.create({
+          data: {
+            businessId,
+            materialId: item.materialId,
+            locationId: receipt.locationId,
+            lotId: lot.id,
+            type: 'RECEIPT',
+            quantityDelta: qty,
+            balanceAfter: round4(currentBalance + qty),
+            unitCostSnapshot: unitCost,
+            totalCostSnapshot: totalCost,
+            currency: 'MXN',
+            referenceType: 'Receipt',
+            referenceId: receipt.id,
+            createdByUserId: userId,
+          },
+        });
+
+        await tx.material.update({
+          where: { id: item.materialId },
+          data: { currentStock: { increment: qty } },
+        });
+
+        await tx.receiptItem.update({
+          where: { id: item.id },
+          data: { lotId: lot.id },
+        });
+
+        const openLots = await tx.materialLot.findMany({
+          where: { materialId: item.materialId, remainingQuantity: { gt: 0 } },
+        });
+        if (openLots.length > 0) {
+          const totalQty = openLots.reduce((s, l) => s + toNumber(l.remainingQuantity), 0);
+          const totalVal = openLots.reduce(
+            (s, l) => s + toNumber(l.remainingQuantity) * toNumber(l.unitCost),
+            0,
+          );
+          const newRefCost = totalQty > 0 ? round4(totalVal / totalQty) : 0;
+          await tx.material.update({
+            where: { id: item.materialId },
+            data: { currentReferenceUnitCost: newRefCost },
+          });
+        }
+      }
+
+      await tx.receipt.update({
+        where: { id: receipt.id },
+        data: {
+          status: 'COMPLETED',
+          authorizedByUserId: userId,
+          authorizedAt: new Date(),
+        },
+      });
+
+      if (po && receipt.purchaseOrderId) {
+        const allReceipts = await tx.receipt.findMany({
+          where: { purchaseOrderId: receipt.purchaseOrderId, status: 'COMPLETED' },
+          include: { items: true },
+        });
+
+        const receivedByMaterial = new Map<string, number>();
+        for (const r of allReceipts) {
+          for (const ri of r.items) {
+            const prev = receivedByMaterial.get(ri.materialId) ?? 0;
+            receivedByMaterial.set(ri.materialId, prev + toNumber(ri.quantityReceived));
+          }
+        }
+
+        const allFullyReceived = po.items.every((poItem) => {
+          const received = receivedByMaterial.get(poItem.materialId) ?? 0;
+          return received >= toNumber(poItem.quantityOrdered);
+        });
+
+        await tx.purchaseOrder.update({
+          where: { id: receipt.purchaseOrderId },
+          data: { status: allFullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED' },
+        });
+      }
+    });
+
+    return this.receiptsRepository.findOne(receipt.id);
+  }
+
+  /**
+   * MANAGER rechaza un borrador: marca como REJECTED sin mover inventario.
+   */
+  async reject(businessId: string, receiptId: string, userId: string, reason: string) {
+    await this.ensureManagementAccess(businessId, userId);
+
+    const receipt = await this.receiptsRepository.findOne(receiptId);
+    if (!receipt || receipt.businessId !== businessId) {
+      throw new NotFoundException('Receipt not found');
+    }
+    if (receipt.status !== 'PENDING_REVIEW') {
+      throw new BadRequestException('Only pending receipts can be rejected');
+    }
+
+    await this.receiptsRepository.update(receipt.id, {
+      status: 'REJECTED',
+      rejectedBy: { connect: { id: userId } },
+      rejectedAt: new Date(),
+      rejectionReason: reason,
+    });
+
+    return this.receiptsRepository.findOne(receipt.id);
   }
 
   async findAll(

@@ -1,8 +1,9 @@
 import React from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { useBusinessStore } from '@/store/business.store';
 import type { ChainTone } from '@/lib/daily-chain-home';
@@ -50,17 +51,17 @@ type PillSkin = {
 };
 
 const PILL_BY_TONE: Record<ChainTone, PillSkin> = {
-  start: { bg: '#F5F2EA', ink: '#0A0A0A', dot: '#0A0A0A' },
-  progress: { bg: '#F5F2EA', ink: '#0A0A0A', dot: '#8FB09D' },
+  start: { bg: '#EDE8D9', ink: '#0B0E12', dot: '#0B0E12' },
+  progress: { bg: '#EDE8D9', ink: '#0B0E12', dot: '#8FB09D' },
   review: { bg: '#C48A3A', ink: '#1A0F03', dot: '#1A0F03' },
   blocker: { bg: '#C25450', ink: '#2A0606', dot: '#2A0606' },
   done: { bg: '#4A7C59', ink: '#F5F2EA', dot: '#F5F2EA' },
 };
 
 const DEFAULT_PILL: PillSkin = {
-  bg: '#F5F2EA',
-  ink: '#0A0A0A',
-  dot: '#0A0A0A',
+  bg: '#EDE8D9',
+  ink: '#0B0E12',
+  dot: '#0B0E12',
 };
 
 const AI_DOT_BY_TONE: Record<ChainTone, string> = {
@@ -70,6 +71,16 @@ const AI_DOT_BY_TONE: Record<ChainTone, string> = {
   blocker: '#C25450',
   done: '#4A7C59',
 };
+
+function adjustLightness(hex: string, delta: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const clamp = (n: number) => Math.max(0, Math.min(255, n));
+  const shift = Math.round((delta / 100) * 255);
+  const toHex = (n: number) => clamp(n + shift).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
 
 export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
   const activeBusinessId = useBusinessStore((s) => s.activeBusinessId);
@@ -132,7 +143,6 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
           flex: 1,
           height: 60,
           borderRadius: 30,
-          backgroundColor: '#0A0A0A',
           paddingHorizontal: 8,
           flexDirection: 'row',
           alignItems: 'center',
@@ -142,8 +152,62 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
           shadowOpacity: 0.32,
           shadowRadius: 18,
           elevation: 10,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: 'rgba(107,122,143,0.22)',
         }}
       >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#141922', '#0B0E12', '#070A0D']}
+          locations={[0, 0.55, 1]}
+          start={{ x: 0.05, y: 0 }}
+          end={{ x: 0.95, y: 1 }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(107,122,143,0.28)', 'rgba(107,122,143,0)']}
+          start={{ x: 1, y: 0 }}
+          end={{ x: 0.2, y: 0.9 }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(143,176,157,0.08)', 'rgba(143,176,157,0)']}
+          start={{ x: 0, y: 1 }}
+          end={{ x: 0.6, y: 0.2 }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        />
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 12,
+            right: 12,
+            height: 1,
+            backgroundColor: 'rgba(245,242,234,0.06)',
+          }}
+        />
         {TAB_META.map((tab) => {
           const isActive = currentRouteName === tab.routeName;
           return (
@@ -154,14 +218,35 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 flex: 1,
                 height: 44,
                 borderRadius: 22,
-                backgroundColor: isActive ? pillSkin.bg : 'transparent',
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
                 paddingHorizontal: 10,
+                borderWidth: isActive ? 1 : 0,
+                borderColor: 'rgba(245,242,234,0.12)',
+                shadowColor: isActive ? '#000' : 'transparent',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: isActive ? 0.25 : 0,
+                shadowRadius: 6,
+                overflow: 'hidden',
               }}
             >
+              {isActive ? (
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={[pillSkin.bg, adjustLightness(pillSkin.bg, -6)]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                  }}
+                />
+              ) : null}
               {isActive && tone ? (
                 <View
                   style={{
@@ -174,22 +259,9 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
               ) : null}
               <Ionicons
                 name={isActive ? tab.iconFilled : tab.icon}
-                size={18}
+                size={20}
                 color={isActive ? pillSkin.ink : 'rgba(245,242,234,0.62)'}
               />
-              {isActive ? (
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: pillSkin.ink,
-                    fontSize: 12,
-                    fontWeight: '800',
-                    letterSpacing: -0.1,
-                  }}
-                >
-                  {tab.label}
-                </Text>
-              ) : null}
             </Pressable>
           );
         })}
@@ -201,7 +273,6 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
           width: 60,
           height: 60,
           borderRadius: 30,
-          backgroundColor: hasBusiness ? '#F5F2EA' : '#0A0A0A',
           alignItems: 'center',
           justifyContent: 'center',
           shadowColor: '#000',
@@ -209,10 +280,46 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
           shadowOpacity: 0.32,
           shadowRadius: 18,
           elevation: 10,
-          borderWidth: hasBusiness ? 0 : 1,
-          borderColor: hasBusiness ? 'transparent' : '#1A1A1A',
+          borderWidth: 1,
+          borderColor: hasBusiness
+            ? 'rgba(11,14,18,0.12)'
+            : 'rgba(107,122,143,0.22)',
+          overflow: 'hidden',
         }}
       >
+        <LinearGradient
+          pointerEvents="none"
+          colors={
+            hasBusiness
+              ? ['#F5F2EA', '#EDE8D9', '#DFD8C2']
+              : ['#141922', '#0B0E12', '#070A0D']
+          }
+          locations={[0, 0.55, 1]}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        />
+        {!hasBusiness ? (
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(107,122,143,0.28)', 'rgba(107,122,143,0)']}
+            start={{ x: 1, y: 0 }}
+            end={{ x: 0.2, y: 1 }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+          />
+        ) : null}
         <View
           style={{
             position: 'absolute',
@@ -223,13 +330,17 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
             borderRadius: 4,
             backgroundColor: aiDotColor,
             borderWidth: 2,
-            borderColor: hasBusiness ? '#F5F2EA' : '#0A0A0A',
+            borderColor: hasBusiness ? '#EDE8D9' : '#0B0E12',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.12,
+            shadowRadius: 2,
           }}
         />
         <Ionicons
           name="sparkles"
           size={22}
-          color={hasBusiness ? '#0A0A0A' : '#F5F2EA'}
+          color={hasBusiness ? '#0B0E12' : '#F5F2EA'}
         />
       </Pressable>
     </View>

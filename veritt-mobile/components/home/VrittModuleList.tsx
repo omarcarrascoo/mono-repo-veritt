@@ -2,6 +2,10 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
+
+const PAPER = '#F5F2EA';
+
 export type VrittModuleRow = {
   key: string;
   label: string;
@@ -45,11 +49,11 @@ const STYLES: Record<
     border: 'rgba(10,10,10,0.08)',
   },
   ink: {
-    bg: '#0A0A0A',
+    bg: '#0B0E12',
     ink: '#F5F2EA',
     eyebrow: 'rgba(245,242,234,0.48)',
     hint: 'rgba(245,242,234,0.46)',
-    iconBg: 'rgba(245,242,234,0.08)',
+    iconBg: 'rgba(107,122,143,0.18)',
     iconInk: 'rgba(245,242,234,0.86)',
     divider: 'rgba(245,242,234,0.06)',
     chevron: 'rgba(245,242,234,0.36)',
@@ -65,6 +69,8 @@ export function VrittModuleList({
 }: VrittModuleListProps) {
   const s = STYLES[variant];
 
+  const isInk = variant === 'ink';
+
   return (
     <View
       style={{
@@ -74,8 +80,10 @@ export function VrittModuleList({
         borderColor: s.border,
         padding: 20,
         gap: 16,
+        overflow: 'hidden',
       }}
     >
+      {isInk ? <VrittAbstractShapes tint={PAPER} variant="hero" /> : null}
       <View>
         <Text
           style={{

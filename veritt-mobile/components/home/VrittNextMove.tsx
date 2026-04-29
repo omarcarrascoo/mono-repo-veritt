@@ -3,6 +3,9 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ChainTone } from '@/lib/daily-chain-home';
+import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
+
+const PAPER = '#F5F2EA';
 
 export type VrittNextMoveSkin = 'hero' | 'ink' | 'paper' | 'outline';
 
@@ -35,13 +38,13 @@ type HeroSkin = {
 
 const HERO_BY_TONE: Record<ChainTone, HeroSkin> = {
   start: {
-    bg: '#0A0A0A',
+    bg: '#0B0E12',
     ink: '#F5F2EA',
     muted: 'rgba(245,242,234,0.6)',
-    iconBg: 'rgba(245,242,234,0.1)',
+    iconBg: 'rgba(107,122,143,0.18)',
     iconInk: '#F5F2EA',
     arrowBg: '#F5F2EA',
-    arrowInk: '#0A0A0A',
+    arrowInk: '#0B0E12',
     eyebrowDot: '#F5F2EA',
     eyebrowText: '#F5F2EA',
   },
@@ -52,7 +55,7 @@ const HERO_BY_TONE: Record<ChainTone, HeroSkin> = {
     iconBg: 'rgba(143,176,157,0.16)',
     iconInk: '#8FB09D',
     arrowBg: '#F5F2EA',
-    arrowInk: '#0A0A0A',
+    arrowInk: '#0B0E12',
     eyebrowDot: '#8FB09D',
     eyebrowText: '#8FB09D',
   },
@@ -104,12 +107,12 @@ type FlatSkin = {
 
 const FLAT_SKINS: Record<Exclude<VrittNextMoveSkin, 'hero'>, FlatSkin> = {
   ink: {
-    bg: '#0A0A0A',
+    bg: '#0B0E12',
     ink: '#F5F2EA',
     muted: 'rgba(245,242,234,0.55)',
-    iconBg: 'rgba(245,242,234,0.1)',
+    iconBg: 'rgba(107,122,143,0.18)',
     iconInk: '#F5F2EA',
-    arrowBg: 'rgba(245,242,234,0.1)',
+    arrowBg: 'rgba(107,122,143,0.22)',
     arrowInk: '#F5F2EA',
     border: 'transparent',
   },
@@ -157,8 +160,10 @@ function Item({
           flexDirection: 'row',
           alignItems: 'center',
           gap: 16,
+          overflow: 'hidden',
         }}
       >
+        <VrittAbstractShapes tint={PAPER} variant="compact" />
         <View
           style={{
             width: 52,
@@ -246,6 +251,7 @@ function Item({
   }
 
   const s = FLAT_SKINS[item.skin];
+  const isInk = item.skin === 'ink';
   return (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -259,8 +265,10 @@ function Item({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 16,
+        overflow: 'hidden',
       }}
     >
+      {isInk ? <VrittAbstractShapes tint={PAPER} variant="compact" /> : null}
       <View
         style={{
           width: 52,

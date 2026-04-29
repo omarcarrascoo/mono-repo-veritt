@@ -18,6 +18,12 @@ export class TimeTrackingRepository {
     });
   }
 
+  findStaffProfileByUser(businessId: string, userId: string) {
+    return this.prisma.staffProfile.findFirst({
+      where: { businessId, userId, status: 'ACTIVE' },
+    });
+  }
+
   findActiveShift(businessId: string, staffProfileId: string) {
     return this.prisma.shiftLog.findFirst({
       where: { businessId, staffProfileId, status: 'ACTIVE' },

@@ -3,6 +3,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { DailyChainStatus } from '@/types/daily-chain.types';
 import { DailySaleSummary } from '@/types/sale.types';
 import { formatCurrency } from '@/lib/staff-formatters';
+import { permissions } from '@/lib/role-permissions';
+import type { MembershipRole } from '@/types/business.types';
 import type {
   VrittBentoBadgeTone,
   VrittBentoPalette,
@@ -204,8 +206,56 @@ export function buildBento(
   dailySales: DailySaleSummary | null,
   upcomingPayrollTotal: number,
   staffCount: number,
+  role: MembershipRole | null,
 ): BentoItemData[] {
   const base = `/businesses/${businessId}`;
+  const canFinance = permissions.canSeeFinance(role);
+  const canPayroll = permissions.canSeePayroll(role);
+
+  // OPERATOR: no ve dinero. Muestra un bento operativo centrado en actividad.
+  if (!canFinance) {
+    return [
+      {
+        key: 'chain-hero',
+        kind: 'headline',
+        label: 'Cadena del día',
+        value: dailySales ? `${dailySales.saleCount} tickets` : 'Día en curso',
+        sub: 'Abre la cadena operativa',
+        palette: 'paper',
+        route: `${base}/daily-chain`,
+      },
+      {
+        key: 'shifts',
+        kind: 'metric',
+        label: 'Mi asistencia',
+        value: 'Abrir',
+        icon: 'time-outline',
+        badgeTone: 'neutral',
+        palette: 'ink',
+        route: `${base}/shifts`,
+      },
+      {
+        key: 'receipts',
+        kind: 'metric',
+        label: 'Recepción',
+        value: 'Registrar',
+        icon: 'archive-outline',
+        badgeTone: 'neutral',
+        palette: 'ink',
+        route: `${base}/receipts/create`,
+      },
+      {
+        key: 'sale-create',
+        kind: 'cta',
+        label: 'Registrar venta',
+        sub: 'Abre el punto de venta',
+        icon: 'add-circle-outline',
+        palette: 'paper',
+        route: `${base}/sales/create`,
+      },
+    ];
+  }
+
   const salesValue = dailySales
     ? formatCurrency(dailySales.totalRevenue)
     : '—';
@@ -226,7 +276,7 @@ export function buildBento(
         { label: 'Tarjeta', value: '—' },
       ];
 
-  return [
+  const items: BentoItemData[] = [
     {
       key: 'sales-hero',
       kind: 'headline',
@@ -249,7 +299,10 @@ export function buildBento(
       palette: 'ink',
       route: `${base}/sales/analytics`,
     },
-    {
+  ];
+
+  if (canPayroll) {
+    items.push({
       key: 'payroll',
       kind: 'metric',
       label: 'Nómina próxima',
@@ -259,28 +312,53 @@ export function buildBento(
       icon: 'cash-outline',
       palette: 'ink',
       route: `${base}/payroll`,
-    },
-    {
-      key: 'payments',
-      kind: 'list',
-      label: 'Mix de pago hoy',
-      bullets: paymentBullets,
-      palette: 'paper',
+    });
+  } else {
+    items.push({
+      key: 'tickets',
+      kind: 'metric',
+      label: 'Tickets hoy',
+      value: dailySales ? String(dailySales.saleCount) : '—',
+      sub: dailySales
+        ? `Prom. ${formatCurrency(dailySales.avgTicket)}`
+        : 'Sin ventas',
+      badgeTone: 'neutral',
+      icon: 'receipt-outline',
+      palette: 'ink',
       route: `${base}/sales`,
-    },
-  ];
+    });
+  }
+
+  items.push({
+    key: 'payments',
+    kind: 'list',
+    label: 'Mix de pago hoy',
+    bullets: paymentBullets,
+    palette: 'paper',
+    route: `${base}/sales`,
+  });
+
+  return items;
 }
 
 export function buildNextMoves(
   businessId: string,
   chain: DailyChainStatus | null,
+  role: MembershipRole | null,
 ): NextMoveItemData[] {
   const base = `/businesses/${businessId}`;
   const dayOpen = chain?.fai?.status === 'AUTHORIZED' && !chain.fci;
   const dayClosed = chain?.fop?.status === 'SIGNED';
 
+  const canFinance = permissions.canSeeFinance(role);
+  const canPayroll = permissions.canSeePayroll(role);
+  const canStaff = permissions.canManageStaff(role);
+  const canSupply = permissions.canManageSupply(role);
+
+  const candidates: Array<NextMoveItemData | null> = [];
+
   if (!chain?.fai) {
-    return [
+    candidates.push(
       {
         key: 'open',
         label: 'Abrir el día',
@@ -290,10 +368,10 @@ export function buildNextMoves(
         route: `${base}/daily-chain/opening`,
       },
       {
-        key: 'team',
-        label: 'Turnos del equipo',
-        hint: 'Entradas y salidas',
-        icon: 'people-outline',
+        key: 'shifts',
+        label: 'Asistencia',
+        hint: 'Marca entrada y salida',
+        icon: 'time-outline',
         skin: 'paper',
         route: `${base}/shifts`,
       },
@@ -305,19 +383,26 @@ export function buildNextMoves(
         skin: 'ink',
         route: `${base}/inventory`,
       },
-      {
-        key: 'suppliers',
-        label: 'Proveedores y compras',
-        hint: 'Órdenes y recepciones',
-        icon: 'business-outline',
-        skin: 'outline',
-        route: `${base}/suppliers`,
-      },
-    ];
-  }
-
-  if (dayClosed) {
-    return [
+      canSupply
+        ? {
+            key: 'suppliers',
+            label: 'Proveedores y compras',
+            hint: 'Órdenes y recepciones',
+            icon: 'business-outline',
+            skin: 'outline',
+            route: `${base}/suppliers`,
+          }
+        : {
+            key: 'receipt-draft',
+            label: 'Recepción pendiente',
+            hint: 'Registra borrador para autorizar',
+            icon: 'archive-outline',
+            skin: 'outline',
+            route: `${base}/receipts/create`,
+          },
+    );
+  } else if (dayClosed) {
+    candidates.push(
       {
         key: 'fop',
         label: 'Ver resumen del día',
@@ -326,35 +411,46 @@ export function buildNextMoves(
         skin: 'hero',
         route: `${base}/daily-chain/fop`,
       },
-      {
-        key: 'analytics',
-        label: 'Analítica de ventas',
-        hint: 'Márgenes y tendencias',
-        icon: 'bar-chart-outline',
-        skin: 'paper',
-        route: `${base}/sales/analytics`,
-      },
-      {
-        key: 'payroll',
-        label: 'Nómina próxima',
-        hint: 'Pagos programados',
-        icon: 'cash-outline',
-        skin: 'ink',
-        route: `${base}/payroll`,
-      },
-      {
-        key: 'team',
-        label: 'Equipo',
-        hint: 'Plantilla y roles',
-        icon: 'people-outline',
-        skin: 'outline',
-        route: `${base}/staff`,
-      },
-    ];
-  }
-
-  if (dayOpen) {
-    return [
+      canFinance
+        ? {
+            key: 'analytics',
+            label: 'Analítica de ventas',
+            hint: 'Márgenes y tendencias',
+            icon: 'bar-chart-outline',
+            skin: 'paper',
+            route: `${base}/sales/analytics`,
+          }
+        : {
+            key: 'shifts-mine',
+            label: 'Mi asistencia',
+            hint: 'Tu historial de turnos',
+            icon: 'time-outline',
+            skin: 'paper',
+            route: `${base}/shifts`,
+          },
+      canPayroll
+        ? {
+            key: 'payroll',
+            label: 'Nómina próxima',
+            hint: 'Pagos programados',
+            icon: 'cash-outline',
+            skin: 'ink',
+            route: `${base}/payroll`,
+          }
+        : null,
+      canStaff
+        ? {
+            key: 'team',
+            label: 'Equipo',
+            hint: 'Plantilla y roles',
+            icon: 'people-outline',
+            skin: 'outline',
+            route: `${base}/staff`,
+          }
+        : null,
+    );
+  } else if (dayOpen) {
+    candidates.push(
       {
         key: 'sale',
         label: 'Registrar venta',
@@ -366,7 +462,7 @@ export function buildNextMoves(
       {
         key: 'receipt',
         label: 'Recepción de mercancía',
-        hint: 'Registrar llegada',
+        hint: canSupply ? 'Registrar llegada' : 'Crea un borrador para autorizar',
         icon: 'archive-outline',
         skin: 'paper',
         route: `${base}/receipts/create`,
@@ -387,48 +483,70 @@ export function buildNextMoves(
         skin: 'outline',
         route: `${base}/daily-chain/closing`,
       },
-    ];
+    );
+  } else {
+    candidates.push(
+      {
+        key: 'chain',
+        label: 'Continuar el cierre',
+        hint: 'Revisa el siguiente paso de la cadena',
+        icon: 'layers-outline',
+        skin: 'hero',
+        route: `${base}/daily-chain`,
+      },
+      canFinance
+        ? {
+            key: 'sales',
+            label: 'Ventas del día',
+            hint: 'Historial completo',
+            icon: 'cart-outline',
+            skin: 'paper',
+            route: `${base}/sales`,
+          }
+        : {
+            key: 'shifts-mine',
+            label: 'Mi asistencia',
+            hint: 'Tu historial de turnos',
+            icon: 'time-outline',
+            skin: 'paper',
+            route: `${base}/shifts`,
+          },
+      canStaff
+        ? {
+            key: 'team',
+            label: 'Equipo',
+            hint: 'Plantilla activa',
+            icon: 'people-outline',
+            skin: 'ink',
+            route: `${base}/staff`,
+          }
+        : null,
+      canPayroll
+        ? {
+            key: 'payroll',
+            label: 'Nómina',
+            hint: 'Pagos próximos',
+            icon: 'cash-outline',
+            skin: 'outline',
+            route: `${base}/payroll`,
+          }
+        : null,
+    );
   }
 
-  return [
-    {
-      key: 'chain',
-      label: 'Continuar el cierre',
-      hint: 'Revisa el siguiente paso de la cadena',
-      icon: 'layers-outline',
-      skin: 'hero',
-      route: `${base}/daily-chain`,
-    },
-    {
-      key: 'sales',
-      label: 'Ventas del día',
-      hint: 'Historial completo',
-      icon: 'cart-outline',
-      skin: 'paper',
-      route: `${base}/sales`,
-    },
-    {
-      key: 'team',
-      label: 'Equipo',
-      hint: 'Plantilla activa',
-      icon: 'people-outline',
-      skin: 'ink',
-      route: `${base}/staff`,
-    },
-    {
-      key: 'payroll',
-      label: 'Nómina',
-      hint: 'Pagos próximos',
-      icon: 'cash-outline',
-      skin: 'outline',
-      route: `${base}/payroll`,
-    },
-  ];
+  return candidates.filter((x): x is NextMoveItemData => x !== null);
 }
 
-export function buildOperationModules(businessId: string): ModuleItemData[] {
+export function buildOperationModules(
+  businessId: string,
+  role: MembershipRole | null,
+): ModuleItemData[] {
   const base = `/businesses/${businessId}`;
-  return [
+  const canStaff = permissions.canManageStaff(role);
+  const canSupply = permissions.canManageSupply(role);
+  const canConfig = permissions.canAccessConfig(role);
+
+  const items: ModuleItemData[] = [
     {
       key: 'inventory',
       label: 'Inventario',
@@ -436,31 +554,47 @@ export function buildOperationModules(businessId: string): ModuleItemData[] {
       icon: 'cube-outline',
       route: `${base}/inventory`,
     },
-    {
+  ];
+
+  if (canStaff) {
+    items.push({
       key: 'staff',
       label: 'Equipo',
       hint: 'Plantilla y roles',
       icon: 'people-outline',
       route: `${base}/staff`,
-    },
-    {
+    });
+  }
+
+  if (canSupply) {
+    items.push({
       key: 'suppliers',
       label: 'Proveedores y compras',
       hint: 'Órdenes, recepciones y facturas',
       icon: 'business-outline',
       route: `${base}/suppliers`,
-    },
-    {
+    });
+  }
+
+  if (canConfig) {
+    items.push({
       key: 'processes',
       label: 'Procesos',
       hint: 'Templates y ejecuciones',
       icon: 'git-network-outline',
       route: `${base}/processes`,
-    },
-  ];
+    });
+  }
+
+  return items;
 }
 
-export function buildConfigModules(businessId: string): ModuleItemData[] {
+export function buildConfigModules(
+  businessId: string,
+  role: MembershipRole | null,
+): ModuleItemData[] {
+  if (!permissions.canAccessConfig(role)) return [];
+
   const base = `/businesses/${businessId}`;
   return [
     {

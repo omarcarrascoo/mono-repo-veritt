@@ -2,6 +2,10 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
+
+const PAPER = '#F5F2EA';
+
 export type VrittBentoPalette = 'paper' | 'ink' | 'outline';
 export type VrittBentoBadgeTone = 'neutral' | 'forest' | 'amber' | 'danger';
 
@@ -46,13 +50,13 @@ const PALETTES: Record<
   },
   // Ink sobre paper: el contraste fuerte.
   ink: {
-    bg: '#0A0A0A',
+    bg: '#0B0E12',
     ink: '#F5F2EA',
     muted: 'rgba(245,242,234,0.5)',
     soft: 'rgba(245,242,234,0.38)',
     divider: 'rgba(245,242,234,0.06)',
-    border: '#0A0A0A',
-    chipBgNeutral: 'rgba(245,242,234,0.08)',
+    border: '#0B0E12',
+    chipBgNeutral: 'rgba(107,122,143,0.18)',
   },
   // Outline sobre paper: solo borde, sin fondo.
   outline: {
@@ -95,6 +99,7 @@ function pickBadge(palette: VrittBentoPalette, tone: VrittBentoBadgeTone) {
 function Widget({ widget }: { widget: VrittBentoWidget }) {
   const p = PALETTES[widget.palette];
   const badgeTone = widget.badgeTone ?? 'neutral';
+  const isInk = widget.palette === 'ink';
 
   if (widget.kind === 'headline') {
     return (
@@ -110,8 +115,10 @@ function Widget({ widget }: { widget: VrittBentoWidget }) {
           padding: 20,
           minHeight: 160,
           justifyContent: 'space-between',
+          overflow: 'hidden',
         }}
       >
+        {isInk ? <VrittAbstractShapes tint={PAPER} variant="wide" /> : null}
         <View
           style={{
             flexDirection: 'row',
@@ -177,8 +184,10 @@ function Widget({ widget }: { widget: VrittBentoWidget }) {
           padding: 16,
           minHeight: 148,
           justifyContent: 'space-between',
+          overflow: 'hidden',
         }}
       >
+        {isInk ? <VrittAbstractShapes tint={PAPER} variant="compact" /> : null}
         <View
           style={{
             flexDirection: 'row',
@@ -266,8 +275,10 @@ function Widget({ widget }: { widget: VrittBentoWidget }) {
           padding: 18,
           minHeight: 140,
           gap: 14,
+          overflow: 'hidden',
         }}
       >
+        {isInk ? <VrittAbstractShapes tint={PAPER} variant="wide" /> : null}
         <View
           style={{
             flexDirection: 'row',
@@ -343,8 +354,10 @@ function Widget({ widget }: { widget: VrittBentoWidget }) {
         padding: 18,
         minHeight: 140,
         justifyContent: 'space-between',
+        overflow: 'hidden',
       }}
     >
+      {isInk ? <VrittAbstractShapes tint={PAPER} variant="compact" /> : null}
       {widget.icon ? (
         <View
           style={{

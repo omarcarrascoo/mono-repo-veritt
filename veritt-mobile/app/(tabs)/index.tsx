@@ -101,24 +101,35 @@ export default function HomeScreen() {
             dailySales,
             upcomingPayrollTotal,
             activeStaffCount,
+            userRole,
           )
         : [],
-    [activeBusiness, dailySales, upcomingPayrollTotal, activeStaffCount],
+    [
+      activeBusiness,
+      dailySales,
+      upcomingPayrollTotal,
+      activeStaffCount,
+      userRole,
+    ],
   );
   const nextMoves = useMemo(
     () =>
       activeBusiness
-        ? buildNextMoves(activeBusiness.id, chain)
+        ? buildNextMoves(activeBusiness.id, chain, userRole)
         : [],
-    [activeBusiness, chain],
+    [activeBusiness, chain, userRole],
   );
   const operationModules = useMemo(
-    () => (activeBusiness ? buildOperationModules(activeBusiness.id) : []),
-    [activeBusiness],
+    () =>
+      activeBusiness
+        ? buildOperationModules(activeBusiness.id, userRole)
+        : [],
+    [activeBusiness, userRole],
   );
   const configModules = useMemo(
-    () => (activeBusiness ? buildConfigModules(activeBusiness.id) : []),
-    [activeBusiness],
+    () =>
+      activeBusiness ? buildConfigModules(activeBusiness.id, userRole) : [],
+    [activeBusiness, userRole],
   );
 
   const onNavigate = useCallback((route: string) => {

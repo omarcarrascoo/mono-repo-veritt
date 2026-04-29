@@ -21,16 +21,16 @@ const round4 = (value: number) => Number(value.toFixed(4));
 export class SupplierInvoicesService {
   constructor(private readonly invoicesRepository: SupplierInvoicesRepository) {}
 
-  private async ensureBusinessAccess(businessId: string, userId: string) {
+  private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.invoicesRepository.findMembership(businessId, userId);
-    if (!membership) {
-      throw new ForbiddenException('You do not belong to this business');
+    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
     return membership;
   }
 
   async create(businessId: string, userId: string, dto: CreateSupplierInvoiceDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
 
     // Validate supplier
     const supplier = await this.invoicesRepository.findSupplier(dto.supplierId);
@@ -64,12 +64,12 @@ export class SupplierInvoicesService {
   }
 
   async findAll(businessId: string, userId: string, filters: { supplierId?: string; status?: string }) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     return this.invoicesRepository.findAll(businessId, filters);
   }
 
   async findOne(businessId: string, invoiceId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const invoice = await this.invoicesRepository.findOne(invoiceId);
     if (!invoice || invoice.businessId !== businessId) {
       throw new NotFoundException('Invoice not found');
@@ -78,7 +78,7 @@ export class SupplierInvoicesService {
   }
 
   async update(businessId: string, invoiceId: string, userId: string, dto: UpdateSupplierInvoiceDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const invoice = await this.invoicesRepository.findOne(invoiceId);
     if (!invoice || invoice.businessId !== businessId) {
       throw new NotFoundException('Invoice not found');
@@ -90,7 +90,7 @@ export class SupplierInvoicesService {
   }
 
   async verify(businessId: string, invoiceId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const invoice = await this.invoicesRepository.findOne(invoiceId);
     if (!invoice || invoice.businessId !== businessId) {
       throw new NotFoundException('Invoice not found');
@@ -105,7 +105,7 @@ export class SupplierInvoicesService {
   }
 
   async dispute(businessId: string, invoiceId: string, userId: string, dto: DisputeSupplierInvoiceDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const invoice = await this.invoicesRepository.findOne(invoiceId);
     if (!invoice || invoice.businessId !== businessId) {
       throw new NotFoundException('Invoice not found');
@@ -119,7 +119,7 @@ export class SupplierInvoicesService {
   }
 
   async softDelete(businessId: string, invoiceId: string, userId: string, dto: DeleteSupplierInvoiceDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const invoice = await this.invoicesRepository.findOne(invoiceId);
     if (!invoice || invoice.businessId !== businessId) {
       throw new NotFoundException('Invoice not found');
@@ -135,7 +135,7 @@ export class SupplierInvoicesService {
   }
 
   async getReceiptTotal(businessId: string, receiptId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const receipt = await this.invoicesRepository.findReceiptWithItems(receiptId);
     if (!receipt || receipt.businessId !== businessId) {
       throw new NotFoundException('Receipt not found');

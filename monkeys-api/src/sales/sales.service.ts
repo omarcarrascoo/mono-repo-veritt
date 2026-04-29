@@ -255,7 +255,7 @@ export class SalesService {
   }
 
   async findAll(businessId: string, userId: string, filters: { status?: string; areaId?: string; operatorStaffId?: string; from?: string; to?: string }) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
 
     let fromDate: Date | undefined;
     let toDate: Date | undefined;
@@ -279,7 +279,7 @@ export class SalesService {
   }
 
   async findOne(businessId: string, saleId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     const sale = await this.salesRepository.findOne(saleId);
     if (!sale || sale.businessId !== businessId) {
       throw new NotFoundException('Sale not found');
@@ -359,7 +359,7 @@ export class SalesService {
   }
 
   async getDailySummary(businessId: string, userId: string, date: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
 
     const dayStart = new Date(date);
     dayStart.setUTCHours(0, 0, 0, 0);
@@ -430,7 +430,7 @@ export class SalesService {
   }
 
   async getPeriodSummary(businessId: string, userId: string, from: string, to: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
 
     const fromDate = new Date(from);
     fromDate.setUTCHours(0, 0, 0, 0);
@@ -518,7 +518,7 @@ export class SalesService {
   }
 
   async getProductRevenue(businessId: string, userId: string, from: string, to: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
 
     const fromDate = new Date(from);
     fromDate.setUTCHours(0, 0, 0, 0);
@@ -550,7 +550,7 @@ export class SalesService {
   }
 
   async getTheoreticalConsumption(businessId: string, userId: string, from: string, to: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
 
     const summary = await this.salesRepository.getTheoreticalConsumptionSummary(
       businessId,

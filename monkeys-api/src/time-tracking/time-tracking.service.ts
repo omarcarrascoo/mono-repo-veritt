@@ -20,13 +20,29 @@ export class TimeTrackingService {
     return membership;
   }
 
+  // OPERATOR: solo puede operar sobre su propio staffProfile. Managers: cualquiera.
+  private enforceOwnStaffProfile(
+    role: string,
+    actorUserId: string,
+    staff: { userId: string | null },
+  ) {
+    if (['OWNER', 'ADMIN', 'SUPERVISOR', 'VERITT_STAFF'].includes(role)) return;
+    if (staff.userId !== actorUserId) {
+      throw new ForbiddenException(
+        'Solo puedes marcar tu propia asistencia',
+      );
+    }
+  }
+
   async clockIn(businessId: string, userId: string, dto: ClockInDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
 
     const staff = await this.timeTrackingRepository.findStaffProfile(dto.staffProfileId);
     if (!staff || staff.businessId !== businessId) {
       throw new NotFoundException('Staff member not found in this business');
     }
+
+    this.enforceOwnStaffProfile(membership.role, userId, staff);
 
     const activeShift = await this.timeTrackingRepository.findActiveShift(businessId, dto.staffProfileId);
     if (activeShift) {
@@ -37,7 +53,7 @@ export class TimeTrackingService {
   }
 
   async clockOut(businessId: string, shiftId: string, userId: string, dto: ClockOutDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
 
     const shift = await this.timeTrackingRepository.findShift(shiftId);
     if (!shift || shift.businessId !== businessId) {
@@ -46,6 +62,8 @@ export class TimeTrackingService {
     if (shift.status !== 'ACTIVE') {
       throw new BadRequestException('This shift is not active');
     }
+
+    this.enforceOwnStaffProfile(membership.role, userId, shift.staffProfile);
 
     const openBreak = shift.breaks.find((b) => !b.endAt);
     if (openBreak) {
@@ -67,7 +85,7 @@ export class TimeTrackingService {
   }
 
   async startBreak(businessId: string, shiftId: string, userId: string, type: string = 'REST') {
-    await this.ensureBusinessAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
 
     const shift = await this.timeTrackingRepository.findShift(shiftId);
     if (!shift || shift.businessId !== businessId) {
@@ -76,6 +94,8 @@ export class TimeTrackingService {
     if (shift.status !== 'ACTIVE') {
       throw new BadRequestException('This shift is not active');
     }
+
+    this.enforceOwnStaffProfile(membership.role, userId, shift.staffProfile);
 
     const openBreak = shift.breaks.find((b) => !b.endAt);
     if (openBreak) {
@@ -86,12 +106,14 @@ export class TimeTrackingService {
   }
 
   async endBreak(businessId: string, shiftId: string, breakId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
 
     const shift = await this.timeTrackingRepository.findShift(shiftId);
     if (!shift || shift.businessId !== businessId) {
       throw new NotFoundException('Shift not found');
     }
+
+    this.enforceOwnStaffProfile(membership.role, userId, shift.staffProfile);
 
     const shiftBreak = await this.timeTrackingRepository.findBreak(breakId);
     if (!shiftBreak || shiftBreak.shiftLogId !== shiftId) {
@@ -107,10 +129,37 @@ export class TimeTrackingService {
     return this.timeTrackingRepository.endBreak(breakId, minutes);
   }
 
+  // OPERATOR: fuerza el filtro al staffProfile del propio usuario.
+  // Devuelve el staffProfileId "effective" o null si OPERATOR no tiene staff vinculado.
+  private async resolveStaffFilterForOperator(
+    businessId: string,
+    membership: { role: string; userId: string },
+    requestedStaffProfileId?: string,
+  ): Promise<string | null | undefined> {
+    if (['OWNER', 'ADMIN', 'SUPERVISOR', 'VERITT_STAFF'].includes(membership.role)) {
+      return requestedStaffProfileId;
+    }
+    const own = await this.timeTrackingRepository.findStaffProfileByUser(
+      businessId,
+      membership.userId,
+    );
+    if (!own) return null;
+    if (requestedStaffProfileId && requestedStaffProfileId !== own.id) {
+      throw new ForbiddenException('Solo puedes consultar tus propios turnos');
+    }
+    return own.id;
+  }
+
   async findAll(businessId: string, userId: string, filters: { staffProfileId?: string; status?: string; from?: string; to?: string }) {
-    await this.ensureBusinessAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+    const effectiveStaffId = await this.resolveStaffFilterForOperator(
+      businessId,
+      { role: membership.role, userId },
+      filters.staffProfileId,
+    );
+    if (effectiveStaffId === null) return [];
     return this.timeTrackingRepository.findAll(businessId, {
-      staffProfileId: filters.staffProfileId,
+      staffProfileId: effectiveStaffId,
       status: filters.status,
       from: filters.from ? new Date(filters.from) : undefined,
       to: filters.to ? new Date(filters.to) : undefined,
@@ -118,25 +167,42 @@ export class TimeTrackingService {
   }
 
   async findActive(businessId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
-    return this.timeTrackingRepository.findActiveShifts(businessId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+    if (['OWNER', 'ADMIN', 'SUPERVISOR', 'VERITT_STAFF'].includes(membership.role)) {
+      return this.timeTrackingRepository.findActiveShifts(businessId);
+    }
+    const own = await this.timeTrackingRepository.findStaffProfileByUser(businessId, userId);
+    if (!own) return [];
+    return this.timeTrackingRepository.findAll(businessId, {
+      staffProfileId: own.id,
+      status: 'ACTIVE',
+    });
   }
 
   async findOne(businessId: string, shiftId: string, userId: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
     const shift = await this.timeTrackingRepository.findShift(shiftId);
     if (!shift || shift.businessId !== businessId) {
       throw new NotFoundException('Shift not found');
     }
+    this.enforceOwnStaffProfile(membership.role, userId, shift.staffProfile);
     return shift;
   }
 
   async getSummary(businessId: string, userId: string, from: string, to: string) {
-    await this.ensureBusinessAccess(businessId, userId);
+    await this.ensureManagementAccess(businessId, userId);
     return this.timeTrackingRepository.getShiftSummary(
       businessId,
       new Date(from),
       new Date(to),
     );
+  }
+
+  private async ensureManagementAccess(businessId: string, userId: string) {
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+    if (!['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+    return membership;
   }
 }

@@ -97,8 +97,8 @@ export class StaffService {
   async list(businessId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership) {
-      throw new ForbiddenException('You do not belong to this business');
+    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     return this.staffRepository.listByBusiness(businessId);
@@ -107,8 +107,8 @@ export class StaffService {
   async getById(businessId: string, staffId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership) {
-      throw new ForbiddenException('You do not belong to this business');
+    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     const staff = await this.staffRepository.findById(businessId, staffId);
@@ -147,8 +147,8 @@ export class StaffService {
   async listCompensationHistory(businessId: string, staffId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership) {
-      throw new ForbiddenException('You do not belong to this business');
+    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     const staff = await this.staffRepository.findById(businessId, staffId);

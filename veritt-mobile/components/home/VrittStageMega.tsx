@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { ChainTone, DailyChainMoment } from '@/lib/daily-chain-home';
 import { STAGE_ACCENTS } from '@/lib/stage-tokens';
+import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
 
 type VrittStageMegaProps = {
   moment: DailyChainMoment;
@@ -35,8 +36,8 @@ type HeroSkin = {
 
 const HERO_SKINS: Record<ChainTone, HeroSkin> = {
   start: {
-    bg: '#0A0A0A',
-    bgGlow: 'rgba(245,242,234,0.05)',
+    bg: '#0B0E12',
+    bgGlow: 'rgba(107,122,143,0.16)',
     glowSize: 320,
     glowOffset: -140,
     divider: 'rgba(245,242,234,0.08)',
@@ -46,7 +47,7 @@ const HERO_SKINS: Record<ChainTone, HeroSkin> = {
     chipInk: '#F5F2EA',
     bigNumber: '#F5F2EA',
     cta: '#F5F2EA',
-    ctaInk: '#0A0A0A',
+    ctaInk: '#0B0E12',
     detailBtn: 'rgba(245,242,234,0.06)',
     detailBtnInk: '#F5F2EA',
   },
@@ -62,7 +63,7 @@ const HERO_SKINS: Record<ChainTone, HeroSkin> = {
     chipInk: '#8FB09D',
     bigNumber: '#8FB09D',
     cta: '#F5F2EA',
-    ctaInk: '#0A0A0A',
+    ctaInk: '#0B0E12',
     detailBtn: 'rgba(143,176,157,0.08)',
     detailBtnInk: '#8FB09D',
   },
@@ -150,6 +151,8 @@ export function VrittStageMega({
         }}
       />
 
+      <VrittAbstractShapes tint={PAPER} variant="hero" />
+
       <View
         style={{
           flexDirection: 'row',
@@ -205,14 +208,14 @@ export function VrittStageMega({
         style={{
           marginTop: 28,
           flexDirection: 'row',
-          alignItems: 'flex-end',
+          alignItems: 'center',
           gap: 14,
         }}
       >
         <Text
           style={{
             color: s.bigNumber,
-            fontSize: 120,
+            fontSize: 90,
             fontWeight: '900',
             letterSpacing: -6,
             lineHeight: 104,

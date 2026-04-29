@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma/prisma.service';
 
 const receiptInclude = {
@@ -65,6 +66,14 @@ export class ReceiptsRepository {
   findOne(receiptId: string) {
     return this.prisma.receipt.findUnique({
       where: { id: receiptId },
+      include: receiptInclude,
+    });
+  }
+
+  update(receiptId: string, data: Prisma.ReceiptUpdateInput) {
+    return this.prisma.receipt.update({
+      where: { id: receiptId },
+      data,
       include: receiptInclude,
     });
   }

@@ -25,10 +25,10 @@ const STATE_COLORS: Record<
     label: 'Hecho',
   },
   active: {
-    fill: '#0A0A0A',
+    fill: '#0B0E12',
     ink: '#F5F2EA',
     label: 'En curso',
-    ring: 'rgba(10,10,10,0.18)',
+    ring: 'rgba(11,14,18,0.18)',
   },
   review: {
     fill: '#C48A3A',

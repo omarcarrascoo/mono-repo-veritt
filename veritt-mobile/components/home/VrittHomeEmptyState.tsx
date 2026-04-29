@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
+
 type VrittHomeEmptyStateProps = {
   firstName: string;
   year: number;
@@ -16,7 +18,7 @@ type VrittHomeEmptyStateProps = {
 };
 
 const PAPER_BG = '#F5F2EA';
-const INK = '#0A0A0A';
+const INK = '#0B0E12';
 
 function Component({
   firstName,
@@ -84,8 +86,10 @@ function Component({
           flexDirection: 'row',
           alignItems: 'center',
           gap: 14,
+          overflow: 'hidden',
         }}
       >
+        <VrittAbstractShapes tint={PAPER_BG} variant="wide" />
         <View
           style={{
             width: 46,

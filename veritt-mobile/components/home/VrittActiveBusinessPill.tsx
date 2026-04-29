@@ -9,7 +9,7 @@ type VrittActiveBusinessPillProps = {
   onPress: () => void;
 };
 
-const INK = '#0A0A0A';
+const INK = '#0B0E12';
 
 function Component({
   businessName,
