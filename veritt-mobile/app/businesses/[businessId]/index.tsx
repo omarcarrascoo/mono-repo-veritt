@@ -4,6 +4,7 @@ import {
   RefreshControl,
   ScrollView,
   StatusBar,
+  Text,
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -31,25 +32,25 @@ import {
   type ChainTone,
 } from '@/lib/daily-chain-home';
 import { MANAGER_ROLES } from '@/types/business.types';
-import { getRoleLabel } from '@/lib/home-greeting';
 import { STAGE_ACCENTS } from '@/lib/stage-tokens';
 
 import { VrittLoader } from '@/components/ui/VrittLoader';
-import { VrittDetailHero } from '@/components/business-detail/VrittDetailHero';
+import { VrittDetailHeader } from '@/components/business-detail/VrittDetailHeader';
+import { VrittDetailAction } from '@/components/business-detail/VrittDetailAction';
+import {
+  VrittQuickModules,
+  type QuickModule,
+} from '@/components/business-detail/VrittQuickModules';
 import {
   VrittDetailBento,
   type DetailMetric,
 } from '@/components/business-detail/VrittDetailBento';
 import {
-  VrittDetailModuleGrid,
-  type DetailModule,
-} from '@/components/business-detail/VrittDetailModuleGrid';
-import {
   VrittDetailInfo,
   type DetailFact,
 } from '@/components/business-detail/VrittDetailInfo';
 import { VrittDetailPending } from '@/components/business-detail/VrittDetailPending';
-import { surface } from '@/constants/design-tokens';
+import { surface, text } from '@/constants/design-tokens';
 
 export default function BusinessDetailScreen() {
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
@@ -175,10 +176,125 @@ export default function BusinessDetailScreen() {
 
   const tone: ChainTone = moment?.tone ?? 'start';
   const stageLabel = STAGE_ACCENTS[tone].label;
-  const stepCode = moment?.stepCode ?? 'FAI · 1 de 5';
 
   const activeStaffCount = staff.filter((s) => s.status === 'ACTIVE').length;
 
+  // ── Quick modules: accesos grandes siempre visibles ────────────────
+  const quickModules: QuickModule[] = useMemo(() => {
+    if (!business) return [];
+    const base = `/businesses/${business.id}`;
+    const list: QuickModule[] = [];
+
+    // El primero siempre es el "golden path" del rol.
+    list.push({
+      key: 'sales',
+      label: canFinance ? 'Ventas' : 'Vender',
+      icon: canFinance ? 'cart-outline' : 'add-circle-outline',
+      highlight: !canFinance, // operador ve el CTA destacado
+      onPress: () =>
+        router.push(
+          canFinance
+            ? (`${base}/sales` as never)
+            : (`${base}/sales/create` as never),
+        ),
+    });
+
+    list.push({
+      key: 'inventory',
+      label: 'Inventario',
+      icon: 'cube-outline',
+      onPress: () => router.push(`${base}/inventory` as never),
+    });
+
+    list.push({
+      key: 'receipts',
+      label: 'Recepciones',
+      icon: 'archive-outline',
+      onPress: () => router.push(`${base}/receipts` as never),
+    });
+
+    list.push({
+      key: 'shifts',
+      label: 'Asistencia',
+      icon: 'time-outline',
+      onPress: () => router.push(`${base}/shifts` as never),
+    });
+
+    if (canStaff) {
+      list.push({
+        key: 'staff',
+        label: 'Equipo',
+        icon: 'people-outline',
+        onPress: () => router.push(`${base}/staff` as never),
+      });
+    }
+
+    if (canPayroll) {
+      list.push({
+        key: 'payroll',
+        label: 'Nómina',
+        icon: 'cash-outline',
+        onPress: () => router.push(`${base}/payroll` as never),
+      });
+    }
+
+    if (canSupply) {
+      list.push(
+        {
+          key: 'suppliers',
+          label: 'Proveedores',
+          icon: 'business-outline',
+          onPress: () => router.push(`${base}/suppliers` as never),
+        },
+        {
+          key: 'pos',
+          label: 'Órdenes',
+          icon: 'document-text-outline',
+          onPress: () => router.push(`${base}/purchase-orders` as never),
+        },
+        {
+          key: 'supplier-invoices',
+          label: 'Facturas',
+          icon: 'receipt-outline',
+          onPress: () => router.push(`${base}/supplier-invoices` as never),
+        },
+      );
+    }
+
+    if (canConfig) {
+      list.push(
+        {
+          key: 'processes',
+          label: 'Procesos',
+          icon: 'git-network-outline',
+          onPress: () => router.push(`${base}/processes` as never),
+        },
+        {
+          key: 'areas',
+          label: 'Áreas',
+          icon: 'map-outline',
+          onPress: () => router.push(`${base}/areas` as never),
+        },
+        {
+          key: 'payment-methods',
+          label: 'Pagos',
+          icon: 'card-outline',
+          onPress: () => router.push(`${base}/payment-methods` as never),
+        },
+      );
+    }
+
+    list.push({
+      key: 'chat',
+      label: 'Chat IA',
+      icon: 'sparkles-outline',
+      onPress: () => router.push(`${base}/chat` as never),
+    });
+
+    return list;
+  }, [business, canFinance, canStaff, canPayroll, canSupply, canConfig]);
+
+  // ── Métricas (compactas, sólo lo que el rol puede ver) ─────────────
   const metrics: DetailMetric[] = useMemo(() => {
     if (!business) return [];
     const base = `/businesses/${business.id}`;
@@ -198,18 +314,8 @@ export default function BusinessDetailScreen() {
             )}`
           : 'Aún sin movimientos',
         icon: 'wallet-outline',
-        variant: 'ink',
+        variant: 'paper',
         onPress: () => router.push(`${base}/sales/analytics` as never),
-      });
-    } else {
-      out.push({
-        key: 'chain-hero',
-        label: 'Cadena del día',
-        value: dailySales ? `${dailySales.saleCount} tickets` : stageLabel,
-        hint: stepCode,
-        icon: 'layers-outline',
-        variant: 'ink',
-        onPress: () => router.push(`${base}/daily-chain` as never),
       });
     }
 
@@ -244,15 +350,6 @@ export default function BusinessDetailScreen() {
       variant: 'paper',
       onPress: () => router.push(`${base}/inventory` as never),
     });
-    out.push({
-      key: 'shifts',
-      label: canStaff ? 'Turnos' : 'Mi asistencia',
-      value: 'Abrir',
-      hint: canStaff ? 'Entradas / salidas' : 'Tu jornada',
-      icon: 'time-outline',
-      variant: 'paper',
-      onPress: () => router.push(`${base}/shifts` as never),
-    });
 
     return out;
   }, [
@@ -261,122 +358,15 @@ export default function BusinessDetailScreen() {
     canStaff,
     canPayroll,
     dailySales,
-    stageLabel,
-    stepCode,
     activeStaffCount,
     upcomingPayrollTotal,
     inventoryStats,
   ]);
 
-  const operationModules: DetailModule[] = useMemo(() => {
-    if (!business) return [];
-    const base = `/businesses/${business.id}`;
-    const list: DetailModule[] = [
-      {
-        key: 'sales',
-        label: canFinance ? 'Ventas' : 'Registrar venta',
-        icon: 'cart-outline',
-        onPress: () =>
-          router.push(
-            canFinance
-              ? (`${base}/sales` as never)
-              : (`${base}/sales/create` as never),
-          ),
-      },
-      {
-        key: 'inventory',
-        label: 'Inventario',
-        icon: 'cube-outline',
-        onPress: () => router.push(`${base}/inventory` as never),
-      },
-      {
-        key: 'receipts',
-        label: 'Recepciones',
-        icon: 'archive-outline',
-        onPress: () => router.push(`${base}/receipts` as never),
-      },
-    ];
-
-    if (canStaff) {
-      list.push({
-        key: 'staff',
-        label: 'Equipo',
-        icon: 'people-outline',
-        onPress: () => router.push(`${base}/staff` as never),
-      });
-    }
-    if (canSupply) {
-      list.push(
-        {
-          key: 'suppliers',
-          label: 'Proveedores',
-          icon: 'business-outline',
-          onPress: () => router.push(`${base}/suppliers` as never),
-        },
-        {
-          key: 'pos',
-          label: 'Órdenes',
-          icon: 'document-text-outline',
-          onPress: () => router.push(`${base}/purchase-orders` as never),
-        },
-      );
-    }
-    if (canConfig) {
-      list.push({
-        key: 'processes',
-        label: 'Procesos',
-        icon: 'git-network-outline',
-        onPress: () => router.push(`${base}/processes` as never),
-      });
-    }
-    list.push({
-      key: 'shifts',
-      label: 'Asistencia',
-      icon: 'time-outline',
-      onPress: () => router.push(`${base}/shifts` as never),
-    });
-    list.push({
-      key: 'chat',
-      label: 'Chat',
-      icon: 'sparkles-outline',
-      onPress: () => router.push(`${base}/chat` as never),
-    });
-    return list;
-  }, [business, canFinance, canStaff, canSupply, canConfig]);
-
-  const configModules: DetailModule[] = useMemo(() => {
-    if (!business || !canConfig) return [];
-    const base = `/businesses/${business.id}`;
-    return [
-      {
-        key: 'areas',
-        label: 'Áreas',
-        icon: 'map-outline',
-        onPress: () => router.push(`${base}/areas` as never),
-      },
-      {
-        key: 'payment-methods',
-        label: 'Pagos',
-        icon: 'card-outline',
-        onPress: () => router.push(`${base}/payment-methods` as never),
-      },
-      {
-        key: 'supplier-invoices',
-        label: 'Facturas',
-        icon: 'receipt-outline',
-        onPress: () => router.push(`${base}/supplier-invoices` as never),
-      },
-    ];
-  }, [business, canConfig]);
-
   const facts: DetailFact[] = useMemo(() => {
     if (!business) return [];
     return [
-      {
-        key: 'timezone',
-        label: 'Zona horaria',
-        value: business.timezone,
-      },
+      { key: 'timezone', label: 'Zona horaria', value: business.timezone },
       {
         key: 'cutoff',
         label: 'Corte operativo',
@@ -403,15 +393,25 @@ export default function BusinessDetailScreen() {
     return <VrittLoader />;
   }
 
-  const onboardingPercent = onboarding.completionPercentage;
-
   return (
     <View style={{ flex: 1, backgroundColor: surface.paper }}>
-      <StatusBar barStyle="light-content" backgroundColor={surface.ink} />
+      <StatusBar barStyle="dark-content" backgroundColor={surface.paper} />
+
+      <VrittDetailHeader
+        name={business.name}
+        tone={tone}
+        stageLabel={stageLabel}
+        onBack={() => router.back()}
+      />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 160 }}
+        contentContainerStyle={{
+          paddingHorizontal: 18,
+          paddingTop: 24,
+          paddingBottom: 180,
+          gap: 40,
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -421,79 +421,113 @@ export default function BusinessDetailScreen() {
           />
         }
       >
-        <VrittDetailHero
-          name={business.name}
-          businessType={business.businessType}
-          role={role}
-          roleLabel={getRoleLabel(role)}
+        {/* 1. ActionHero: foco del día */}
+        <VrittDetailAction
           tone={tone}
-          stageLabel={stageLabel}
-          stepCode={stepCode}
-          city={business.city}
-          state={business.state}
-          description={business.description}
-          onboardingPercent={onboardingPercent}
-          onBack={() => router.back()}
-          onOpenChain={() =>
-            router.push(`/businesses/${business.id}/daily-chain` as never)
-          }
+          eyebrow={moment.eyebrow}
+          title={moment.title}
+          description={moment.description}
+          ctaLabel={moment.ctaLabel}
+          stepCode={moment.stepCode}
+          onPress={() => router.push(moment.ctaRoute as never)}
         />
 
-        {/* Drawer que sube sobre el hero con esquinas redondeadas */}
-        <View
-          style={{
-            backgroundColor: surface.paper,
-            marginTop: -28,
-            borderTopLeftRadius: 28,
-            borderTopRightRadius: 28,
-            paddingTop: 22,
-            paddingHorizontal: 18,
-            gap: 22,
-            minHeight: 500,
-          }}
-        >
-          <View
-            style={{
-              alignSelf: 'center',
-              width: 44,
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: 'rgba(11,14,18,0.1)',
-              marginBottom: 4,
-            }}
-          />
+        {/* 2. Módulos accesibles — siempre visibles justo debajo de la acción */}
+        <View style={{ gap: 14 }}>
+          <View style={{ paddingHorizontal: 4 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Text
+                style={{
+                  color: text.onPaper.muted,
+                  fontSize: 10,
+                  fontWeight: '800',
+                  letterSpacing: 1.8,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Accesos
+              </Text>
+              <Text
+                style={{
+                  color: text.onPaper.subtle,
+                  fontSize: 10,
+                  fontWeight: '700',
+                  letterSpacing: 1.2,
+                  textTransform: 'uppercase',
+                }}
+              >
+                {quickModules.length} módulos
+              </Text>
+            </View>
+            <Text
+              style={{
+                color: text.onPaper.primary,
+                fontSize: 22,
+                fontWeight: '800',
+                letterSpacing: -0.8,
+                marginTop: 4,
+              }}
+            >
+              Todo a la mano
+            </Text>
+          </View>
+          <VrittQuickModules modules={quickModules} />
+        </View>
 
-          <VrittDetailBento metrics={metrics} />
-
+        {/* 3. Pending (si aplica) — manager/supervisor verá cómo avanzar */}
+        {pendingSteps.length > 0 ? (
           <VrittDetailPending
             steps={pendingSteps}
             onStart={() =>
               router.push(`/businesses/${business.id}/daily-chain` as never)
             }
           />
+        ) : null}
 
-          <VrittDetailModuleGrid
-            eyebrow="Operación"
-            title="Módulos del negocio"
-            modules={operationModules}
-          />
+        {/* 4. Metrics — datos sintetizados, sólo los del rol */}
+        {metrics.length > 0 ? (
+          <View style={{ gap: 14 }}>
+            <View style={{ paddingHorizontal: 4 }}>
+              <Text
+                style={{
+                  color: text.onPaper.muted,
+                  fontSize: 10,
+                  fontWeight: '800',
+                  letterSpacing: 1.8,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Estado del negocio
+              </Text>
+              <Text
+                style={{
+                  color: text.onPaper.primary,
+                  fontSize: 22,
+                  fontWeight: '800',
+                  letterSpacing: -0.8,
+                  marginTop: 4,
+                }}
+              >
+                Cómo va hoy
+              </Text>
+            </View>
+            <VrittDetailBento metrics={metrics} tone={tone} />
+          </View>
+        ) : null}
 
-          {configModules.length > 0 ? (
-            <VrittDetailModuleGrid
-              eyebrow="Configuración"
-              title="Ajustes del espacio"
-              modules={configModules}
-            />
-          ) : null}
-
-          <VrittDetailInfo
-            eyebrow="Detalles"
-            title="Información del espacio"
-            facts={facts}
-          />
-        </View>
+        {/* 5. Info del espacio */}
+        <VrittDetailInfo
+          eyebrow="Detalles"
+          title="Información del espacio"
+          facts={facts}
+        />
       </ScrollView>
     </View>
   );
 }
-
