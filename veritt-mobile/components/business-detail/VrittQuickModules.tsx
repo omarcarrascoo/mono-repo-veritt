@@ -1,13 +1,13 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import {
   LayoutChangeEvent,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import type { QuickModuleItem } from '@/lib/business-detail-builders';
 import {
   hairline,
   radius,
@@ -15,36 +15,30 @@ import {
   text,
 } from '@/constants/design-tokens';
 
-export type QuickModule = {
-  key: string;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  highlight?: boolean;
-  onPress: () => void;
-};
-
 type VrittQuickModulesProps = {
-  modules: QuickModule[];
+  items: QuickModuleItem[];
+  onNavigate: (route: string) => void;
 };
 
 const COLUMNS = 4;
 const GAP = 10;
 
-function Component({ modules }: VrittQuickModulesProps) {
-  const { width: screenWidth } = useWindowDimensions();
-  const [containerWidth, setContainerWidth] = React.useState(
-    screenWidth - 36, // fallback = ancho pantalla menos padding horizontal (18*2)
-  );
+function Component({ items, onNavigate }: VrittQuickModulesProps) {
+  const [containerWidth, setContainerWidth] = useState(0);
 
-  if (modules.length === 0) return null;
+  const onLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    setContainerWidth((prev) =>
+      w > 0 && Math.abs(w - prev) > 0.5 ? w : prev,
+    );
+  }, []);
+
+  if (items.length === 0) return null;
 
   const tileWidth =
-    (containerWidth - GAP * (COLUMNS - 1)) / COLUMNS;
-
-  const onLayout = (e: LayoutChangeEvent) => {
-    const w = e.nativeEvent.layout.width;
-    if (w > 0 && Math.abs(w - containerWidth) > 0.5) setContainerWidth(w);
-  };
+    containerWidth > 0
+      ? (containerWidth - GAP * (COLUMNS - 1)) / COLUMNS
+      : 0;
 
   return (
     <View
@@ -55,24 +49,36 @@ function Component({ modules }: VrittQuickModulesProps) {
         gap: GAP,
       }}
     >
-      {modules.map((m) => (
-        <QuickTile key={m.key} module={m} width={tileWidth} />
+      {items.map((m) => (
+        <QuickTile
+          key={m.key}
+          item={m}
+          width={tileWidth}
+          onNavigate={onNavigate}
+        />
       ))}
     </View>
   );
 }
 
-function QuickTile({
-  module: m,
-  width,
-}: {
-  module: QuickModule;
+type QuickTileProps = {
+  item: QuickModuleItem;
   width: number;
-}) {
+  onNavigate: (route: string) => void;
+};
+
+function QuickTileInner({ item, width, onNavigate }: QuickTileProps) {
+  const handlePress = useCallback(
+    () => onNavigate(item.route),
+    [onNavigate, item.route],
+  );
+
+  if (width <= 0) return null;
+
   return (
     <TouchableOpacity
       activeOpacity={0.88}
-      onPress={m.onPress}
+      onPress={handlePress}
       style={{
         width,
         paddingVertical: 14,
@@ -80,7 +86,7 @@ function QuickTile({
         borderRadius: radius.md,
         backgroundColor: surface.card,
         borderWidth: 1,
-        borderColor: m.highlight
+        borderColor: item.highlight
           ? 'rgba(11,14,18,0.18)'
           : hairline.onPaperSoft,
         alignItems: 'center',
@@ -93,7 +99,7 @@ function QuickTile({
           width: 34,
           height: 34,
           borderRadius: 17,
-          backgroundColor: m.highlight
+          backgroundColor: item.highlight
             ? surface.ink
             : 'rgba(11,14,18,0.05)',
           alignItems: 'center',
@@ -101,9 +107,9 @@ function QuickTile({
         }}
       >
         <Ionicons
-          name={m.icon}
+          name={item.icon}
           size={16}
-          color={m.highlight ? text.onInk.primary : text.onPaper.primary}
+          color={item.highlight ? text.onInk.primary : text.onPaper.primary}
         />
       </View>
       <Text
@@ -116,10 +122,12 @@ function QuickTile({
           textAlign: 'center',
         }}
       >
-        {m.label}
+        {item.label}
       </Text>
     </TouchableOpacity>
   );
 }
+
+const QuickTile = memo(QuickTileInner);
 
 export const VrittQuickModules = memo(Component);

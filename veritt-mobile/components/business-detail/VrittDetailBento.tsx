@@ -1,9 +1,10 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type { ChainTone } from '@/lib/daily-chain-home';
+import type { DetailMetricItem } from '@/lib/business-detail-builders';
 import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
 import {
   hairline,
@@ -17,35 +18,31 @@ import {
   withAlpha,
 } from '@/constants/design-tokens';
 
-export type DetailMetric = {
-  key: string;
-  label: string;
-  value: string;
-  hint?: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  variant: 'hero' | 'ink' | 'paper';
-  onPress?: () => void;
-};
-
 type VrittDetailBentoProps = {
-  metrics: DetailMetric[];
-  /** Se usa para acentuar la métrica hero con el color del estado del negocio. */
-  tone?: ChainTone;
+  items: DetailMetricItem[];
+  tone: ChainTone;
+  onNavigate: (route: string) => void;
 };
 
-function HeroMetric({
-  metric,
-  tone,
-}: {
-  metric: DetailMetric;
+// ── Métrica hero (ink) ──
+
+type HeroMetricProps = {
+  item: DetailMetricItem;
   tone: ChainTone;
-}) {
+  onNavigate: (route: string) => void;
+};
+
+function HeroMetricInner({ item, tone, onNavigate }: HeroMetricProps) {
   const accent = stateOnInk[tone];
+  const handlePress = useCallback(
+    () => onNavigate(item.route),
+    [onNavigate, item.route],
+  );
 
   return (
     <TouchableOpacity
       activeOpacity={0.9}
-      onPress={metric.onPress}
+      onPress={handlePress}
       style={{
         borderRadius: radius.lg,
         overflow: 'hidden',
@@ -58,26 +55,14 @@ function HeroMetric({
         locations={[0, 0.55, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}
+        style={StyleSheet_absolute}
       />
       <LinearGradient
         pointerEvents="none"
         colors={[...navbar.steelOverlay]}
         start={{ x: 1, y: 0 }}
         end={{ x: 0.2, y: 0.9 }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}
+        style={StyleSheet_absolute}
       />
       <View
         pointerEvents="none"
@@ -113,11 +98,7 @@ function HeroMetric({
               justifyContent: 'center',
             }}
           >
-            <Ionicons
-              name={metric.icon}
-              size={17}
-              color={palette.paper}
-            />
+            <Ionicons name={item.icon} size={17} color={palette.paper} />
           </View>
           <Text
             style={{
@@ -128,7 +109,7 @@ function HeroMetric({
               textTransform: 'uppercase',
             }}
           >
-            {metric.label}
+            {item.label}
           </Text>
         </View>
 
@@ -143,9 +124,9 @@ function HeroMetric({
               fontVariant: ['tabular-nums'],
             }}
           >
-            {metric.value}
+            {item.value}
           </Text>
-          {metric.hint ? (
+          {item.hint ? (
             <Text
               numberOfLines={1}
               style={{
@@ -156,7 +137,7 @@ function HeroMetric({
                 letterSpacing: -0.1,
               }}
             >
-              {metric.hint}
+              {item.hint}
             </Text>
           ) : null}
         </View>
@@ -165,19 +146,27 @@ function HeroMetric({
   );
 }
 
-function SmallMetric({
-  metric,
-  tone,
-}: {
-  metric: DetailMetric;
+const HeroMetric = memo(HeroMetricInner);
+
+// ── Métrica secundaria (paper con halo del tono) ──
+
+type SmallMetricProps = {
+  item: DetailMetricItem;
   tone: ChainTone;
-}) {
+  onNavigate: (route: string) => void;
+};
+
+function SmallMetricInner({ item, tone, onNavigate }: SmallMetricProps) {
   const accent = stateOnPaper[tone];
+  const handlePress = useCallback(
+    () => onNavigate(item.route),
+    [onNavigate, item.route],
+  );
 
   return (
     <TouchableOpacity
       activeOpacity={0.88}
-      onPress={metric.onPress}
+      onPress={handlePress}
       style={{
         flex: 1,
         padding: 16,
@@ -190,7 +179,6 @@ function SmallMetric({
         overflow: 'hidden',
       }}
     >
-      {/* Halo sutil del tono en la esquina */}
       <View
         pointerEvents="none"
         style={{
@@ -221,11 +209,7 @@ function SmallMetric({
             justifyContent: 'center',
           }}
         >
-          <Ionicons
-            name={metric.icon}
-            size={14}
-            color={accent.chipInk}
-          />
+          <Ionicons name={item.icon} size={14} color={accent.chipInk} />
         </View>
       </View>
 
@@ -240,7 +224,7 @@ function SmallMetric({
             fontVariant: ['tabular-nums'],
           }}
         >
-          {metric.value}
+          {item.value}
         </Text>
         <Text
           numberOfLines={1}
@@ -253,29 +237,40 @@ function SmallMetric({
             marginTop: 5,
           }}
         >
-          {metric.label}
+          {item.label}
         </Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-function Component({ metrics, tone = 'start' }: VrittDetailBentoProps) {
-  if (metrics.length === 0) return null;
+const SmallMetric = memo(SmallMetricInner);
 
-  const [hero, ...rest] = metrics;
-  const pairs: DetailMetric[][] = [];
-  for (let i = 0; i < rest.length; i += 2) {
-    pairs.push(rest.slice(i, i + 2));
-  }
+// ── Wrapper ──
+
+function Component({ items, tone, onNavigate }: VrittDetailBentoProps) {
+  const pairs = useMemo(() => {
+    if (items.length <= 1) return [];
+    const rest = items.slice(1);
+    const out: DetailMetricItem[][] = [];
+    for (let i = 0; i < rest.length; i += 2) out.push(rest.slice(i, i + 2));
+    return out;
+  }, [items]);
+
+  if (items.length === 0) return null;
 
   return (
     <View style={{ gap: 12 }}>
-      {hero ? <HeroMetric metric={hero} tone={tone} /> : null}
+      <HeroMetric item={items[0]} tone={tone} onNavigate={onNavigate} />
       {pairs.map((pair, idx) => (
         <View key={idx} style={{ flexDirection: 'row', gap: 12 }}>
           {pair.map((m) => (
-            <SmallMetric key={m.key} metric={m} tone={tone} />
+            <SmallMetric
+              key={m.key}
+              item={m}
+              tone={tone}
+              onNavigate={onNavigate}
+            />
           ))}
           {pair.length === 1 ? <View style={{ flex: 1 }} /> : null}
         </View>
@@ -285,3 +280,12 @@ function Component({ metrics, tone = 'start' }: VrittDetailBentoProps) {
 }
 
 export const VrittDetailBento = memo(Component);
+
+// Estilo reutilizable para posiciones absolute full.
+const StyleSheet_absolute = {
+  position: 'absolute' as const,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+};
