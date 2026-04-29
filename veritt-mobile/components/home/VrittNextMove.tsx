@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ChainTone } from '@/lib/daily-chain-home';
 import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
 
-const PAPER = '#F5F2EA';
+const PAPER = '#F2F2F2';
 
 export type VrittNextMoveSkin = 'hero' | 'ink' | 'paper' | 'outline';
 
@@ -39,29 +39,29 @@ type HeroSkin = {
 const HERO_BY_TONE: Record<ChainTone, HeroSkin> = {
   start: {
     bg: '#0B0E12',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     muted: 'rgba(245,242,234,0.6)',
     iconBg: 'rgba(107,122,143,0.18)',
-    iconInk: '#F5F2EA',
-    arrowBg: '#F5F2EA',
+    iconInk: '#F2F2F2',
+    arrowBg: '#F2F2F2',
     arrowInk: '#0B0E12',
-    eyebrowDot: '#F5F2EA',
-    eyebrowText: '#F5F2EA',
+    eyebrowDot: '#F2F2F2',
+    eyebrowText: '#F2F2F2',
   },
   progress: {
     bg: '#0B0E12',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     muted: 'rgba(245,242,234,0.6)',
     iconBg: 'rgba(143,176,157,0.16)',
     iconInk: '#8FB09D',
-    arrowBg: '#F5F2EA',
+    arrowBg: '#F2F2F2',
     arrowInk: '#0B0E12',
     eyebrowDot: '#8FB09D',
     eyebrowText: '#8FB09D',
   },
   review: {
     bg: '#100A03',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     muted: 'rgba(245,242,234,0.62)',
     iconBg: 'rgba(196,138,58,0.2)',
     iconInk: '#C48A3A',
@@ -72,7 +72,7 @@ const HERO_BY_TONE: Record<ChainTone, HeroSkin> = {
   },
   blocker: {
     bg: '#100404',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     muted: 'rgba(245,242,234,0.6)',
     iconBg: 'rgba(194,84,80,0.2)',
     iconInk: '#C25450',
@@ -83,12 +83,12 @@ const HERO_BY_TONE: Record<ChainTone, HeroSkin> = {
   },
   done: {
     bg: '#06120C',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     muted: 'rgba(245,242,234,0.66)',
     iconBg: 'rgba(74,124,89,0.22)',
     iconInk: '#8FB09D',
     arrowBg: '#4A7C59',
-    arrowInk: '#F5F2EA',
+    arrowInk: '#F2F2F2',
     eyebrowDot: '#8FB09D',
     eyebrowText: '#8FB09D',
   },
@@ -108,12 +108,12 @@ type FlatSkin = {
 const FLAT_SKINS: Record<Exclude<VrittNextMoveSkin, 'hero'>, FlatSkin> = {
   ink: {
     bg: '#0B0E12',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     muted: 'rgba(245,242,234,0.55)',
     iconBg: 'rgba(107,122,143,0.18)',
-    iconInk: '#F5F2EA',
+    iconInk: '#F2F2F2',
     arrowBg: 'rgba(107,122,143,0.22)',
-    arrowInk: '#F5F2EA',
+    arrowInk: '#F2F2F2',
     border: 'transparent',
   },
   paper: {

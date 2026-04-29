@@ -37,8 +37,9 @@ import { VrittBentoSection } from '@/components/home/sections/VrittBentoSection'
 import { VrittNextMoveSection } from '@/components/home/sections/VrittNextMoveSection';
 import { VrittModulesSection } from '@/components/home/sections/VrittModulesSection';
 import { VrittDayTimeline } from '@/components/home/VrittDayTimeline';
+import { surface } from '@/constants/design-tokens';
 
-const PAPER_BG = '#F5F2EA';
+const PAPER_BG = surface.paper;
 
 export default function HomeScreen() {
   const user = useAuthStore((state) => state.user);

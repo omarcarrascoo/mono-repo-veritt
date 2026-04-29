@@ -1,13 +1,15 @@
 import React, { memo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
+import { surface, text } from '@/constants/design-tokens';
+
 type VrittGreetingHeaderProps = {
   greeting: string;
   firstName: string;
   onPressAvatar: () => void;
 };
 
-const INK = '#0B0E12';
+const INK = surface.ink;
 
 function Component({
   greeting,
@@ -63,7 +65,7 @@ function Component({
       >
         <Text
           style={{
-            color: '#F5F2EA',
+            color: text.onInk.primary,
             fontSize: 14,
             fontWeight: '900',
           }}

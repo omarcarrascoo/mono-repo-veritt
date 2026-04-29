@@ -2,9 +2,10 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { ChainTone, DailyChainMoment } from '@/lib/daily-chain-home';
+import { DailyChainMoment } from '@/lib/daily-chain-home';
 import { STAGE_ACCENTS } from '@/lib/stage-tokens';
 import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
+import { heroSkin, surface } from '@/constants/design-tokens';
 
 type VrittStageMegaProps = {
   moment: DailyChainMoment;
@@ -14,110 +15,8 @@ type VrittStageMegaProps = {
   onPressDetail: () => void;
 };
 
-// Cada etapa tiene un "negro tintado": el fondo sigue siendo casi ink puro,
-// pero lleva un matiz imperceptible del tono. El color puro aparece solo en
-// el número grande, el chip y el CTA.
-type HeroSkin = {
-  bg: string;
-  bgGlow: string;
-  glowSize: number;
-  glowOffset: number;
-  divider: string;
-  bodyMuted: string;
-  bodySoft: string;
-  chipBg: string;
-  chipInk: string;
-  bigNumber: string;
-  cta: string;
-  ctaInk: string;
-  detailBtn: string;
-  detailBtnInk: string;
-};
-
-const HERO_SKINS: Record<ChainTone, HeroSkin> = {
-  start: {
-    bg: '#0B0E12',
-    bgGlow: 'rgba(107,122,143,0.16)',
-    glowSize: 320,
-    glowOffset: -140,
-    divider: 'rgba(245,242,234,0.08)',
-    bodyMuted: 'rgba(245,242,234,0.56)',
-    bodySoft: 'rgba(245,242,234,0.42)',
-    chipBg: 'rgba(245,242,234,0.1)',
-    chipInk: '#F5F2EA',
-    bigNumber: '#F5F2EA',
-    cta: '#F5F2EA',
-    ctaInk: '#0B0E12',
-    detailBtn: 'rgba(245,242,234,0.06)',
-    detailBtnInk: '#F5F2EA',
-  },
-  progress: {
-    bg: '#0B0E12',
-    bgGlow: 'rgba(107,122,143,0.18)',
-    glowSize: 340,
-    glowOffset: -150,
-    divider: 'rgba(143,176,157,0.1)',
-    bodyMuted: 'rgba(245,242,234,0.58)',
-    bodySoft: 'rgba(245,242,234,0.42)',
-    chipBg: 'rgba(143,176,157,0.14)',
-    chipInk: '#8FB09D',
-    bigNumber: '#8FB09D',
-    cta: '#F5F2EA',
-    ctaInk: '#0B0E12',
-    detailBtn: 'rgba(143,176,157,0.08)',
-    detailBtnInk: '#8FB09D',
-  },
-  review: {
-    bg: '#100A03',
-    bgGlow: 'rgba(196,138,58,0.2)',
-    glowSize: 340,
-    glowOffset: -150,
-    divider: 'rgba(196,138,58,0.14)',
-    bodyMuted: 'rgba(245,242,234,0.6)',
-    bodySoft: 'rgba(245,242,234,0.42)',
-    chipBg: 'rgba(196,138,58,0.18)',
-    chipInk: '#C48A3A',
-    bigNumber: '#C48A3A',
-    cta: '#C48A3A',
-    ctaInk: '#1A0F03',
-    detailBtn: 'rgba(196,138,58,0.1)',
-    detailBtnInk: '#C48A3A',
-  },
-  blocker: {
-    bg: '#100404',
-    bgGlow: 'rgba(194,84,80,0.22)',
-    glowSize: 340,
-    glowOffset: -150,
-    divider: 'rgba(194,84,80,0.14)',
-    bodyMuted: 'rgba(245,242,234,0.6)',
-    bodySoft: 'rgba(245,242,234,0.42)',
-    chipBg: 'rgba(194,84,80,0.2)',
-    chipInk: '#C25450',
-    bigNumber: '#C25450',
-    cta: '#C25450',
-    ctaInk: '#2A0606',
-    detailBtn: 'rgba(194,84,80,0.12)',
-    detailBtnInk: '#C25450',
-  },
-  done: {
-    bg: '#06120C',
-    bgGlow: 'rgba(74,124,89,0.22)',
-    glowSize: 360,
-    glowOffset: -160,
-    divider: 'rgba(74,124,89,0.16)',
-    bodyMuted: 'rgba(245,242,234,0.66)',
-    bodySoft: 'rgba(245,242,234,0.46)',
-    chipBg: 'rgba(74,124,89,0.22)',
-    chipInk: '#8FB09D',
-    bigNumber: '#8FB09D',
-    cta: '#4A7C59',
-    ctaInk: '#F5F2EA',
-    detailBtn: 'rgba(74,124,89,0.14)',
-    detailBtnInk: '#8FB09D',
-  },
-};
-
-const PAPER = '#F5F2EA';
+// El skin por etapa vive en `constants/design-tokens.ts` como `heroSkin`.
+const PAPER = surface.paper;
 
 export function VrittStageMega({
   moment,
@@ -127,7 +26,7 @@ export function VrittStageMega({
   onPressDetail,
 }: VrittStageMegaProps) {
   const a = STAGE_ACCENTS[moment.tone];
-  const s = HERO_SKINS[moment.tone];
+  const s = heroSkin[moment.tone];
 
   return (
     <View

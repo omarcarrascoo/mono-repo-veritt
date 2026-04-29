@@ -1,7 +1,14 @@
 import React, { memo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+
+import {
+  hairline,
+  radius,
+  shadow,
+  surface,
+  text,
+} from '@/constants/design-tokens';
 
 type VrittBusinessCreateCardProps = {
   width: number;
@@ -9,8 +16,11 @@ type VrittBusinessCreateCardProps = {
   onPress: () => void;
 };
 
-const PAPER = '#F5F2EA';
-const PAPER_SOFT = '#EDE8D9';
+const INK = surface.ink;
+const INK_SOFT = text.onPaper.soft;
+const INK_MUTED = text.onPaper.muted;
+const HAIRLINE = hairline.onPaper;
+const HAIRLINE_SOFT = hairline.onPaperSoft;
 
 function Component({ width, height, onPress }: VrittBusinessCreateCardProps) {
   return (
@@ -20,123 +30,81 @@ function Component({ width, height, onPress }: VrittBusinessCreateCardProps) {
       style={{
         width,
         height,
-        borderRadius: 32,
+        borderRadius: radius.lg,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(245,242,234,0.14)',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 20 },
-        shadowOpacity: 0.28,
-        shadowRadius: 28,
-        elevation: 12,
+        borderColor: HAIRLINE,
+        backgroundColor: surface.card,
+        ...shadow.card,
       }}
     >
-      <LinearGradient
+      {/* Rail neutro — no comunica estado, es la card "crear" */}
+      <View
         pointerEvents="none"
-        colors={['#141922', '#0B0E12', '#070A0D']}
-        locations={[0, 0.55, 1]}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
         style={{
           position: 'absolute',
           top: 0,
-          left: 0,
-          right: 0,
           bottom: 0,
-        }}
-      />
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(107,122,143,0.28)', 'rgba(107,122,143,0)']}
-        start={{ x: 1, y: 0 }}
-        end={{ x: 0.2, y: 1 }}
-        style={{
-          position: 'absolute',
-          top: 0,
           left: 0,
-          right: 0,
-          bottom: 0,
-        }}
-      />
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(143,176,157,0.1)', 'rgba(143,176,157,0)']}
-        start={{ x: 0, y: 1 }}
-        end={{ x: 0.6, y: 0.2 }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          width: 4,
+          backgroundColor: INK,
         }}
       />
 
       <View
         style={{
           flex: 1,
-          padding: 26,
+          paddingHorizontal: 26,
+          paddingTop: 26,
+          paddingBottom: 24,
+          paddingLeft: 30,
           justifyContent: 'space-between',
         }}
       >
-        <View style={{ gap: 20 }}>
+        <View style={{ gap: 14 }}>
           <Text
             style={{
-              color: 'rgba(245,242,234,0.5)',
-              fontSize: 11,
-              fontWeight: '800',
-              letterSpacing: 2,
+              color: INK_MUTED,
+              fontSize: 10,
+              fontWeight: '700',
+              letterSpacing: 2.4,
               textTransform: 'uppercase',
             }}
           >
             Nuevo espacio
           </Text>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-            <View
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 20,
-                backgroundColor: PAPER,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Ionicons name="add" size={30} color="#0B0E12" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  color: PAPER,
-                  fontSize: 30,
-                  fontWeight: '900',
-                  letterSpacing: -1.4,
-                  lineHeight: 32,
-                }}
-              >
-                Crear{'\n'}negocio.
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={{ gap: 18 }}>
           <Text
             style={{
-              color: 'rgba(245,242,234,0.72)',
-              fontSize: 15,
-              lineHeight: 22,
+              color: INK,
+              fontSize: 34,
+              fontWeight: '800',
+              letterSpacing: -1.2,
+              lineHeight: 38,
             }}
           >
-            Cada negocio tiene su propia cadena operativa, equipo y reportes.
-            Configura un nuevo espacio en pocos minutos.
+            Crear{'\n'}negocio.
+          </Text>
+        </View>
+
+        <View style={{ gap: 22 }}>
+          <Text
+            style={{
+              color: INK_SOFT,
+              fontSize: 15,
+              lineHeight: 22,
+              letterSpacing: -0.1,
+            }}
+          >
+            Configura un espacio con su propia cadena operativa, equipo y
+            reportes. Toma pocos minutos.
           </Text>
 
-          <View style={{ gap: 8 }}>
-            <Bullet text="Cadena diaria FAI → FOP" />
-            <Bullet text="Inventario, staff y nómina" />
-            <Bullet text="Ventas y analítica dedicada" />
+          <View style={{ height: 1, backgroundColor: HAIRLINE_SOFT }} />
+
+          <View style={{ gap: 10 }}>
+            <ChecklistItem text="Cadena diaria FAI → FOP" />
+            <ChecklistItem text="Inventario, staff y nómina" />
+            <ChecklistItem text="Ventas y analítica dedicada" />
           </View>
 
           <View
@@ -149,10 +117,10 @@ function Component({ width, height, onPress }: VrittBusinessCreateCardProps) {
           >
             <Text
               style={{
-                color: PAPER,
+                color: INK,
                 fontSize: 11,
                 fontWeight: '800',
-                letterSpacing: 1.2,
+                letterSpacing: 1.6,
                 textTransform: 'uppercase',
               }}
             >
@@ -160,15 +128,14 @@ function Component({ width, height, onPress }: VrittBusinessCreateCardProps) {
             </Text>
             <View
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: PAPER_SOFT,
+                width: 32,
+                height: 32,
+                backgroundColor: INK,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Ionicons name="arrow-forward" size={18} color="#0B0E12" />
+              <Ionicons name="arrow-forward" size={16} color={text.onInk.primary} />
             </View>
           </View>
         </View>
@@ -177,23 +144,23 @@ function Component({ width, height, onPress }: VrittBusinessCreateCardProps) {
   );
 }
 
-function Bullet({ text }: { text: string }) {
+function ChecklistItem({ text }: { text: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <View
         style={{
-          width: 5,
-          height: 5,
-          borderRadius: 2.5,
-          backgroundColor: 'rgba(245,242,234,0.55)',
+          width: 14,
+          height: 1,
+          backgroundColor: 'rgba(11,14,18,0.4)',
         }}
       />
       <Text
         style={{
-          color: 'rgba(245,242,234,0.78)',
+          color: INK_SOFT,
           fontSize: 13,
           fontWeight: '600',
           letterSpacing: -0.1,
+          flex: 1,
         }}
       >
         {text}

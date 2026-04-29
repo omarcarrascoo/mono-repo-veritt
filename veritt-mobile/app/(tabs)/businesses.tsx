@@ -10,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import { useBusinessStore } from '@/store/business.store';
 import { useBusinessesSummary } from '@/hooks/useBusinessesSummary';
@@ -21,11 +20,11 @@ import type { Business } from '@/types/business.types';
 import { VrittLoader } from '@/components/ui/VrittLoader';
 import { VrittBusinessCard } from '@/components/businesses/VrittBusinessCard';
 import { VrittBusinessCreateCard } from '@/components/businesses/VrittBusinessCreateCard';
-import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
+import { hairline, palette, surface, text } from '@/constants/design-tokens';
 
-const INK_BG = '#03050A';
-const PAPER = '#F5F2EA';
-const PAPER_SOFT = '#EDE8D9';
+const PAPER_BG = surface.paper;
+const INK = surface.ink;
+const INK_MUTED = text.onPaper.muted;
 const SIDE_PADDING = 18;
 const CARD_GAP = 14;
 const HEADER_TOP = Platform.OS === 'ios' ? 72 : 64;
@@ -125,110 +124,56 @@ export default function BusinessesScreen() {
   }
 
   // Header (greeting + summary) más compacto para reducir el aire entre texto y carrusel.
-  const HEADER_HEIGHT = businesses.length === 0 ? 96 : 156;
+  const HEADER_HEIGHT = businesses.length === 0 ? 110 : 176;
   const carouselHeight =
     screenHeight - HEADER_TOP - HEADER_HEIGHT - CAROUSEL_BOTTOM_SPACE;
 
   return (
-    <View style={{ flex: 1, backgroundColor: INK_BG }}>
-      <StatusBar barStyle="light-content" backgroundColor={INK_BG} />
-
-      <LinearGradient
-        pointerEvents="none"
-        colors={['#0D1118', '#050709', '#020305']}
-        locations={[0, 0.55, 1]}
-        start={{ x: 0.05, y: 0 }}
-        end={{ x: 0.95, y: 1 }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}
-      />
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(107,122,143,0.22)', 'rgba(107,122,143,0)']}
-        start={{ x: 1, y: 0 }}
-        end={{ x: 0.1, y: 0.65 }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 560,
-        }}
-      />
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(143,176,157,0.08)', 'rgba(143,176,157,0)']}
-        start={{ x: 0, y: 1 }}
-        end={{ x: 0.7, y: 0.2 }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 560,
-        }}
-      />
-
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 620,
-          overflow: 'hidden',
-        }}
-      >
-        <VrittAbstractShapes tint={PAPER} variant="hero" />
-      </View>
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 340,
-          overflow: 'hidden',
-        }}
-      >
-        <VrittAbstractShapes tint={PAPER} variant="wide" />
-      </View>
+    <View style={{ flex: 1, backgroundColor: PAPER_BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={PAPER_BG} />
 
       <View
         style={{
           paddingTop: HEADER_TOP,
           paddingHorizontal: SIDE_PADDING + 4,
-          gap: 14,
+          gap: 18,
           paddingBottom: 6,
         }}
       >
-        <View>
-          <Text
+        <View style={{ gap: 8 }}>
+          <View
             style={{
-              color: 'rgba(245,242,234,0.5)',
-              fontSize: 11,
-              fontWeight: '700',
-              letterSpacing: 2.2,
-              textTransform: 'uppercase',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
             }}
           >
-            Tus espacios
-          </Text>
+            <View
+              style={{
+                width: 18,
+                height: 1,
+                backgroundColor: INK_MUTED,
+              }}
+            />
+            <Text
+              style={{
+                color: INK_MUTED,
+                fontSize: 10,
+                fontWeight: '800',
+                letterSpacing: 2.6,
+                textTransform: 'uppercase',
+              }}
+            >
+              Tus espacios
+            </Text>
+          </View>
           <Text
             style={{
-              color: PAPER,
-              fontSize: 30,
-              fontWeight: '900',
-              letterSpacing: -1.2,
-              marginTop: 4,
-              lineHeight: 34,
+              color: INK,
+              fontSize: 34,
+              fontWeight: '800',
+              letterSpacing: -1.6,
+              lineHeight: 38,
             }}
           >
             Negocios.
@@ -236,7 +181,14 @@ export default function BusinessesScreen() {
         </View>
 
         {businesses.length > 0 ? (
-          <View style={{ marginRight: 4 }}>
+          <View
+            style={{
+              marginRight: 4,
+              paddingTop: 14,
+              borderTopWidth: 1,
+              borderTopColor: hairline.onPaperSoft,
+            }}
+          >
             <SummaryRow
               total={businesses.length}
               inProgressCount={inProgressCount}
@@ -347,8 +299,8 @@ function PageIndicator({
               height: 6,
               borderRadius: 3,
               backgroundColor: isActive
-                ? PAPER
-                : 'rgba(245,242,234,0.22)',
+                ? INK
+                : hairline.onPaperStrong,
             }}
           />
         );
@@ -399,23 +351,13 @@ function SummaryPill({
   highlight?: 'danger';
 }) {
   return (
-    <View
-      style={{
-        flex: 1,
-        paddingVertical: 12,
-        paddingHorizontal: 14,
-        borderRadius: 14,
-        backgroundColor: 'rgba(245,242,234,0.06)',
-        borderWidth: 1,
-        borderColor: 'rgba(245,242,234,0.1)',
-      }}
-    >
+    <View style={{ flex: 1 }}>
       <Text
         style={{
-          color: highlight === 'danger' ? '#C25450' : 'rgba(245,242,234,0.5)',
+          color: highlight === 'danger' ? palette.danger : INK_MUTED,
           fontSize: 9,
           fontWeight: '800',
-          letterSpacing: 1.2,
+          letterSpacing: 1.6,
           textTransform: 'uppercase',
         }}
       >
@@ -424,11 +366,11 @@ function SummaryPill({
       <Text
         numberOfLines={1}
         style={{
-          color: PAPER_SOFT,
-          fontSize: 15,
-          fontWeight: '900',
-          letterSpacing: -0.3,
-          marginTop: 4,
+          color: INK,
+          fontSize: 17,
+          fontWeight: '700',
+          letterSpacing: -0.5,
+          marginTop: 6,
           fontVariant: ['tabular-nums'],
         }}
       >

@@ -2,6 +2,8 @@ import React, { memo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { surface, text } from '@/constants/design-tokens';
+
 type VrittActiveBusinessPillProps = {
   businessName: string;
   roleLabel: string;
@@ -9,7 +11,7 @@ type VrittActiveBusinessPillProps = {
   onPress: () => void;
 };
 
-const INK = '#0B0E12';
+const INK = surface.ink;
 
 function Component({
   businessName,
@@ -48,7 +50,7 @@ function Component({
       >
         <Text
           style={{
-            color: '#F5F2EA',
+            color: text.onInk.primary,
             fontSize: 10,
             fontWeight: '900',
           }}

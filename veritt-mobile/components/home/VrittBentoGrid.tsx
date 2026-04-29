@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
 
-const PAPER = '#F5F2EA';
+const PAPER = '#F2F2F2';
 
 export type VrittBentoPalette = 'paper' | 'ink' | 'outline';
 export type VrittBentoBadgeTone = 'neutral' | 'forest' | 'amber' | 'danger';
@@ -51,7 +51,7 @@ const PALETTES: Record<
   // Ink sobre paper: el contraste fuerte.
   ink: {
     bg: '#0B0E12',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     muted: 'rgba(245,242,234,0.5)',
     soft: 'rgba(245,242,234,0.38)',
     divider: 'rgba(245,242,234,0.06)',
@@ -84,7 +84,7 @@ const BADGE_TONES_ON_DARK: Record<
   VrittBentoBadgeTone,
   { bg: string; ink: string }
 > = {
-  neutral: { bg: 'rgba(245,242,234,0.08)', ink: '#F5F2EA' },
+  neutral: { bg: 'rgba(245,242,234,0.08)', ink: '#F2F2F2' },
   forest: { bg: 'rgba(143,176,157,0.16)', ink: '#8FB09D' },
   amber: { bg: 'rgba(196,138,58,0.16)', ink: '#C48A3A' },
   danger: { bg: 'rgba(194,84,80,0.16)', ink: '#C25450' },

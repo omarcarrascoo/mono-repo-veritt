@@ -21,12 +21,12 @@ const STATE_COLORS: Record<
 > = {
   done: {
     fill: '#4A7C59',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     label: 'Hecho',
   },
   active: {
     fill: '#0B0E12',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     label: 'En curso',
     ring: 'rgba(11,14,18,0.18)',
   },
@@ -63,7 +63,7 @@ export function VrittChainSemaphore({ steps, onPress }: VrittChainSemaphoreProps
     <Wrapper
       {...wrapperProps}
       style={{
-        backgroundColor: '#F5F2EA',
+        backgroundColor: '#F2F2F2',
         borderRadius: 20,
         padding: 18,
         borderWidth: 1,

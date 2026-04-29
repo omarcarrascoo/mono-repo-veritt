@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
+import { surface } from '@/constants/design-tokens';
 
 type VrittHomeEmptyStateProps = {
   firstName: string;
@@ -17,8 +18,8 @@ type VrittHomeEmptyStateProps = {
   onCreateBusiness: () => void;
 };
 
-const PAPER_BG = '#F5F2EA';
-const INK = '#0B0E12';
+const PAPER_BG = surface.paper;
+const INK = surface.ink;
 
 function Component({
   firstName,
@@ -105,7 +106,7 @@ function Component({
         <View style={{ flex: 1 }}>
           <Text
             style={{
-              color: '#F5F2EA',
+              color: '#F2F2F2',
               fontSize: 16,
               fontWeight: '800',
               letterSpacing: -0.3,
@@ -123,7 +124,7 @@ function Component({
             Configura el espacio y empieza a operar.
           </Text>
         </View>
-        <Ionicons name="arrow-forward" size={20} color="#F5F2EA" />
+        <Ionicons name="arrow-forward" size={20} color="#F2F2F2" />
       </TouchableOpacity>
     </ScrollView>
   );

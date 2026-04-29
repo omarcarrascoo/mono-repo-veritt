@@ -1,6 +1,8 @@
 import React from 'react';
 import { View } from 'react-native';
 
+import { surface, withAlpha } from '@/constants/design-tokens';
+
 type VrittAbstractShapesVariant = 'hero' | 'compact' | 'wide';
 
 type VrittAbstractShapesProps = {
@@ -8,14 +10,7 @@ type VrittAbstractShapesProps = {
   variant?: VrittAbstractShapesVariant;
 };
 
-const PAPER = '#F5F2EA';
-
-function withAlpha(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
+const PAPER = surface.paper;
 
 function HeroShapes({ tint }: { tint: string }) {
   const a = (alpha: number) => withAlpha(tint, alpha);

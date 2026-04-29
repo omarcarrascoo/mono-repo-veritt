@@ -28,7 +28,7 @@ const STATE_VISUALS: Record<
 > = {
   done: {
     dotBg: '#4A7C59',
-    dotInk: '#F5F2EA',
+    dotInk: '#F2F2F2',
     dotBorder: '#4A7C59',
     line: '#4A7C59',
     title: '#0A0A0A',
@@ -38,7 +38,7 @@ const STATE_VISUALS: Record<
   },
   active: {
     dotBg: '#0B0E12',
-    dotInk: '#F5F2EA',
+    dotInk: '#F2F2F2',
     dotBorder: '#0B0E12',
     line: 'rgba(10,10,10,0.14)',
     title: '#0A0A0A',

@@ -7,6 +7,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { useBusinessStore } from '@/store/business.store';
 import type { ChainTone } from '@/lib/daily-chain-home';
+import {
+  aiDotByTone,
+  defaultPill,
+  navbar,
+  palette,
+  pillByTone,
+} from '@/constants/design-tokens';
 
 type TabMeta = {
   routeName: string;
@@ -43,34 +50,7 @@ const TAB_META: TabMeta[] = [
 ];
 
 // Pill activo = piel según etapa. Comunica en qué está el negocio sin salir
-// del home. Paleta alineada con StageMega / NextMove.
-type PillSkin = {
-  bg: string;
-  ink: string;
-  dot: string;
-};
-
-const PILL_BY_TONE: Record<ChainTone, PillSkin> = {
-  start: { bg: '#EDE8D9', ink: '#0B0E12', dot: '#0B0E12' },
-  progress: { bg: '#EDE8D9', ink: '#0B0E12', dot: '#8FB09D' },
-  review: { bg: '#C48A3A', ink: '#1A0F03', dot: '#1A0F03' },
-  blocker: { bg: '#C25450', ink: '#2A0606', dot: '#2A0606' },
-  done: { bg: '#4A7C59', ink: '#F5F2EA', dot: '#F5F2EA' },
-};
-
-const DEFAULT_PILL: PillSkin = {
-  bg: '#EDE8D9',
-  ink: '#0B0E12',
-  dot: '#0B0E12',
-};
-
-const AI_DOT_BY_TONE: Record<ChainTone, string> = {
-  start: '#4A7C59',
-  progress: '#8FB09D',
-  review: '#C48A3A',
-  blocker: '#C25450',
-  done: '#4A7C59',
-};
+// del home. Fuente en `constants/design-tokens.ts` → `pillByTone`.
 
 function adjustLightness(hex: string, delta: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -95,8 +75,8 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
     ? chainToneByBusinessId[bizId] ?? null
     : null;
 
-  const pillSkin: PillSkin = tone ? PILL_BY_TONE[tone] : DEFAULT_PILL;
-  const aiDotColor = tone ? AI_DOT_BY_TONE[tone] : '#4A7C59';
+  const pillSkin = tone ? pillByTone[tone] : defaultPill;
+  const aiDotColor = tone ? aiDotByTone[tone] : palette.forest;
 
   const handlePress = (routeName: string) => {
     const route = state.routes.find((r) => r.name === routeName);
@@ -154,12 +134,12 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
           elevation: 10,
           overflow: 'hidden',
           borderWidth: 1,
-          borderColor: 'rgba(107,122,143,0.22)',
+          borderColor: navbar.border,
         }}
       >
         <LinearGradient
           pointerEvents="none"
-          colors={['#141922', '#0B0E12', '#070A0D']}
+          colors={[...navbar.gradient]}
           locations={[0, 0.55, 1]}
           start={{ x: 0.05, y: 0 }}
           end={{ x: 0.95, y: 1 }}
@@ -173,7 +153,7 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
         />
         <LinearGradient
           pointerEvents="none"
-          colors={['rgba(107,122,143,0.28)', 'rgba(107,122,143,0)']}
+          colors={[...navbar.steelOverlay]}
           start={{ x: 1, y: 0 }}
           end={{ x: 0.2, y: 0.9 }}
           style={{
@@ -186,7 +166,7 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
         />
         <LinearGradient
           pointerEvents="none"
-          colors={['rgba(143,176,157,0.08)', 'rgba(143,176,157,0)']}
+          colors={[...navbar.forestOverlay]}
           start={{ x: 0, y: 1 }}
           end={{ x: 0.6, y: 0.2 }}
           style={{
@@ -224,7 +204,7 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
                 gap: 6,
                 paddingHorizontal: 10,
                 borderWidth: isActive ? 1 : 0,
-                borderColor: 'rgba(245,242,234,0.12)',
+                borderColor: navbar.pillBorder,
                 shadowColor: isActive ? '#000' : 'transparent',
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: isActive ? 0.25 : 0,
@@ -260,7 +240,7 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
               <Ionicons
                 name={isActive ? tab.iconFilled : tab.icon}
                 size={20}
-                color={isActive ? pillSkin.ink : 'rgba(245,242,234,0.62)'}
+                color={isActive ? pillSkin.ink : navbar.iconInactive}
               />
             </Pressable>
           );
@@ -281,9 +261,7 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
           shadowRadius: 18,
           elevation: 10,
           borderWidth: 1,
-          borderColor: hasBusiness
-            ? 'rgba(11,14,18,0.12)'
-            : 'rgba(107,122,143,0.22)',
+          borderColor: hasBusiness ? 'rgba(11,14,18,0.12)' : navbar.border,
           overflow: 'hidden',
         }}
       >
@@ -291,8 +269,8 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
           pointerEvents="none"
           colors={
             hasBusiness
-              ? ['#F5F2EA', '#EDE8D9', '#DFD8C2']
-              : ['#141922', '#0B0E12', '#070A0D']
+              ? [...navbar.chatGradient]
+              : [...navbar.gradient]
           }
           locations={[0, 0.55, 1]}
           start={{ x: 0.2, y: 0 }}
@@ -308,7 +286,7 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
         {!hasBusiness ? (
           <LinearGradient
             pointerEvents="none"
-            colors={['rgba(107,122,143,0.28)', 'rgba(107,122,143,0)']}
+            colors={[...navbar.steelOverlay]}
             start={{ x: 1, y: 0 }}
             end={{ x: 0.2, y: 1 }}
             style={{
@@ -330,7 +308,7 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
             borderRadius: 4,
             backgroundColor: aiDotColor,
             borderWidth: 2,
-            borderColor: hasBusiness ? '#EDE8D9' : '#0B0E12',
+            borderColor: hasBusiness ? palette.paper : palette.ink,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 1 },
             shadowOpacity: 0.12,
@@ -340,7 +318,7 @@ export function VrittFloatingTabBar({ state, navigation }: BottomTabBarProps) {
         <Ionicons
           name="sparkles"
           size={22}
-          color={hasBusiness ? '#0B0E12' : '#F5F2EA'}
+          color={hasBusiness ? palette.ink : palette.paper}
         />
       </Pressable>
     </View>

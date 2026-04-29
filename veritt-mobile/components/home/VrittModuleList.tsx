@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { VrittAbstractShapes } from '@/components/home/VrittAbstractShapes';
 
-const PAPER = '#F5F2EA';
+const PAPER = '#F2F2F2';
 
 export type VrittModuleRow = {
   key: string;
@@ -50,7 +50,7 @@ const STYLES: Record<
   },
   ink: {
     bg: '#0B0E12',
-    ink: '#F5F2EA',
+    ink: '#F2F2F2',
     eyebrow: 'rgba(245,242,234,0.48)',
     hint: 'rgba(245,242,234,0.46)',
     iconBg: 'rgba(107,122,143,0.18)',

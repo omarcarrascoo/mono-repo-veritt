@@ -121,7 +121,7 @@ export function VrittBusinessSwitcher({
                   >
                     <Text
                       style={{
-                        color: isActive ? '#F5F2EA' : '#F5F2EA',
+                        color: isActive ? '#F2F2F2' : '#F2F2F2',
                         fontSize: 18,
                         fontWeight: '800',
                       }}

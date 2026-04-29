@@ -15,7 +15,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import { useBusinessStore } from '@/store/business.store';
 
-const PAPER_BG = '#F5F2EA';
+const PAPER_BG = '#F2F2F2';
 const INK = '#0A0A0A';
 
 type Suggestion = {
@@ -206,7 +206,7 @@ export default function BusinessChatScreen() {
                 justifyContent: 'center',
               }}
             >
-              <Ionicons name="sparkles" size={20} color="#F5F2EA" />
+              <Ionicons name="sparkles" size={20} color="#F2F2F2" />
             </View>
             <View style={{ flex: 1 }}>
               <Text
@@ -335,7 +335,7 @@ export default function BusinessChatScreen() {
               multiline
               style={{
                 flex: 1,
-                color: '#F5F2EA',
+                color: '#F2F2F2',
                 fontSize: 15,
                 fontWeight: '500',
                 paddingVertical: 10,
@@ -350,7 +350,7 @@ export default function BusinessChatScreen() {
                 height: 44,
                 borderRadius: 22,
                 backgroundColor: draft.trim()
-                  ? '#F5F2EA'
+                  ? '#F2F2F2'
                   : 'rgba(245,242,234,0.1)',
                 alignItems: 'center',
                 justifyContent: 'center',
