@@ -1,34 +1,63 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  View,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
 import { businessesApi } from '@/api/modules/businesses.api';
 import { staffApi } from '@/api/modules/staff.api';
 import { payrollApi } from '@/api/modules/payroll.api';
 import { inventoryApi } from '@/api/modules/inventory.api';
-import { Business, BusinessOnboarding } from '@/types/business.types';
+import { salesApi } from '@/api/modules/sales.api';
+import { dailyChainApi } from '@/api/modules/daily-chain.api';
+import {
+  Business,
+  BusinessOnboarding,
+  MembershipRole,
+} from '@/types/business.types';
+import type { DailyChainStatus } from '@/types/daily-chain.types';
+import type { DailySaleSummary } from '@/types/sale.types';
 import { StaffProfile } from '@/types/staff.types';
 import { getApiErrorMessage } from '@/utils/error.utils';
 import { formatCurrency } from '@/lib/staff-formatters';
-
-import { VrittScreen } from '@/components/ui/VrittScreen';
-import { VrittHeader } from '@/components/ui/VrittHeader';
-import { VrittCard } from '@/components/ui/VrittCard';
-import { VrittButton } from '@/components/ui/VrittButton';
-import { VrittLoader } from '@/components/ui/VrittLoader';
-import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel';
-
+import { permissions } from '@/lib/role-permissions';
+import { getPendingOnboardingSteps } from '@/lib/business-onboarding';
 import {
-  getPendingOnboardingSteps,
-  ONBOARDING_CHECKLIST,
-} from '@/lib/business-onboarding';
+  getDailyChainMoment,
+  type ChainTone,
+} from '@/lib/daily-chain-home';
+import { MANAGER_ROLES } from '@/types/business.types';
+import { getRoleLabel } from '@/lib/home-greeting';
+import { STAGE_ACCENTS } from '@/lib/stage-tokens';
+
+import { VrittLoader } from '@/components/ui/VrittLoader';
+import { VrittDetailHero } from '@/components/business-detail/VrittDetailHero';
+import {
+  VrittDetailBento,
+  type DetailMetric,
+} from '@/components/business-detail/VrittDetailBento';
+import {
+  VrittDetailModuleGrid,
+  type DetailModule,
+} from '@/components/business-detail/VrittDetailModuleGrid';
+import {
+  VrittDetailInfo,
+  type DetailFact,
+} from '@/components/business-detail/VrittDetailInfo';
+import { VrittDetailPending } from '@/components/business-detail/VrittDetailPending';
+import { surface } from '@/constants/design-tokens';
 
 export default function BusinessDetailScreen() {
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [onboarding, setOnboarding] = useState<BusinessOnboarding | null>(null);
+  const [chain, setChain] = useState<DailyChainStatus | null>(null);
+  const [dailySales, setDailySales] = useState<DailySaleSummary | null>(null);
   const [staff, setStaff] = useState<StaffProfile[]>([]);
   const [upcomingPayrollTotal, setUpcomingPayrollTotal] = useState<number>(0);
   const [inventoryStats, setInventoryStats] = useState({
@@ -37,625 +66,434 @@ export default function BusinessDetailScreen() {
     products: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadBusinessData = useCallback(async () => {
+  const role: MembershipRole | null = business?.userRole ?? null;
+  const isManager =
+    !!role && (MANAGER_ROLES as MembershipRole[]).includes(role);
+  const canFinance = permissions.canSeeFinance(role);
+  const canStaff = permissions.canManageStaff(role);
+  const canPayroll = permissions.canSeePayroll(role);
+  const canConfig = permissions.canAccessConfig(role);
+  const canSupply = permissions.canManageSupply(role);
+
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const loadAll = useCallback(async () => {
     if (!businessId) return;
 
-    try {
-      setIsLoading(true);
+    const base = await Promise.all([
+      businessesApi.getMine().catch(() => []),
+      businessesApi.getOnboarding(businessId).catch(() => null),
+      dailyChainApi.getStatus(businessId).catch(() => null),
+      inventoryApi.listLocations(businessId).catch(() => []),
+      inventoryApi.listMaterials(businessId).catch(() => []),
+      inventoryApi.listProducts(businessId).catch(() => []),
+    ]);
 
-      const [
-        businesses,
-        onboardingData,
-        staffData,
-        payrollData,
-        locationData,
-        materialData,
-        productData,
-      ] = await Promise.all([
-        businessesApi.getMine(),
-        businessesApi.getOnboarding(businessId),
-        staffApi.getByBusinessId(businessId),
-        payrollApi.getUpcoming(businessId).catch(() => ({ 
-          todayDate: new Date().toISOString(),
-          upcomingWindowDays: 7,
-          overdue: [],
-          dueToday: [],
-          upcoming: [] 
-        })),
-        inventoryApi.listLocations(businessId).catch(() => []),
-        inventoryApi.listMaterials(businessId).catch(() => []),
-        inventoryApi.listProducts(businessId).catch(() => []),
-      ]);
+    const [
+      businessesList,
+      onboardingData,
+      chainData,
+      locationData,
+      materialData,
+      productData,
+    ] = base;
 
-      const foundBusiness = businesses.find((item) => item.id === businessId) ?? null;
+    const foundBusiness =
+      businessesList.find((item) => item.id === businessId) ?? null;
+    const roleForScoped = foundBusiness?.userRole ?? null;
+    const canFin = permissions.canSeeFinance(roleForScoped);
+    const canSt = permissions.canManageStaff(roleForScoped);
+    const canPay = permissions.canSeePayroll(roleForScoped);
 
-      // Calculate total upcoming payroll amount
-      const upcomingPayments = [
-        ...(payrollData.overdue || []),
-        ...(payrollData.dueToday || []),
-        ...(payrollData.upcoming || [])
-      ];
-      const totalAmount = upcomingPayments.reduce((sum, payment) => {
-        const amount = typeof payment.amount === 'string' ? parseFloat(payment.amount) : payment.amount || 0;
-        return sum + amount;
-      }, 0);
+    const [salesData, staffData, payrollData] = await Promise.all([
+      canFin
+        ? salesApi.getDailySummary(businessId, today).catch(() => null)
+        : Promise.resolve(null),
+      canSt
+        ? staffApi.getByBusinessId(businessId).catch(() => [])
+        : Promise.resolve([]),
+      canPay
+        ? payrollApi.getUpcoming(businessId).catch(() => null)
+        : Promise.resolve(null),
+    ]);
 
-      setBusiness(foundBusiness);
-      setOnboarding(onboardingData);
-      setStaff(staffData);
-      setUpcomingPayrollTotal(totalAmount);
-      setInventoryStats({
-        locations: locationData.length,
-        materials: materialData.length,
-        products: productData.length,
-      });
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        getApiErrorMessage(error, 'No pudimos cargar el negocio.')
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [businessId]);
+    const payrollTotal = payrollData
+      ? [
+          ...(payrollData.overdue ?? []),
+          ...(payrollData.dueToday ?? []),
+          ...(payrollData.upcoming ?? []),
+        ].reduce((sum, p) => {
+          const amount =
+            typeof p.amount === 'string' ? parseFloat(p.amount) : p.amount || 0;
+          return sum + amount;
+        }, 0)
+      : 0;
+
+    setBusiness(foundBusiness);
+    setOnboarding(onboardingData);
+    setChain(chainData);
+    setDailySales(salesData);
+    setStaff(staffData);
+    setUpcomingPayrollTotal(payrollTotal);
+    setInventoryStats({
+      locations: locationData.length,
+      materials: materialData.length,
+      products: productData.length,
+    });
+  }, [businessId, today]);
 
   useEffect(() => {
-    loadBusinessData();
-  }, [loadBusinessData]);
+    setIsLoading(true);
+    loadAll()
+      .catch((err) =>
+        Alert.alert(
+          'Error',
+          getApiErrorMessage(err, 'No pudimos cargar el negocio.'),
+        ),
+      )
+      .finally(() => setIsLoading(false));
+  }, [loadAll]);
 
-  const pendingSteps = useMemo(() => {
-    if (!onboarding) return [];
-    return getPendingOnboardingSteps(onboarding);
-  }, [onboarding]);
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await loadAll().catch(() => {});
+    setIsRefreshing(false);
+  }, [loadAll]);
 
-  if (isLoading) {
+  const moment = useMemo(
+    () =>
+      business ? getDailyChainMoment(business.id, chain, isManager) : null,
+    [business, chain, isManager],
+  );
+
+  const pendingSteps = useMemo(
+    () => (onboarding ? getPendingOnboardingSteps(onboarding) : []),
+    [onboarding],
+  );
+
+  const tone: ChainTone = moment?.tone ?? 'start';
+  const stageLabel = STAGE_ACCENTS[tone].label;
+  const stepCode = moment?.stepCode ?? 'FAI · 1 de 5';
+
+  const activeStaffCount = staff.filter((s) => s.status === 'ACTIVE').length;
+
+  const metrics: DetailMetric[] = useMemo(() => {
+    if (!business) return [];
+    const base = `/businesses/${business.id}`;
+    const out: DetailMetric[] = [];
+
+    if (canFinance) {
+      const salesValue = dailySales
+        ? formatCurrency(dailySales.totalRevenue)
+        : '—';
+      out.push({
+        key: 'sales-hero',
+        label: 'Caja del día',
+        value: salesValue,
+        hint: dailySales
+          ? `${dailySales.saleCount} tickets · prom. ${formatCurrency(
+              dailySales.avgTicket,
+            )}`
+          : 'Aún sin movimientos',
+        icon: 'wallet-outline',
+        variant: 'ink',
+        onPress: () => router.push(`${base}/sales/analytics` as never),
+      });
+    } else {
+      out.push({
+        key: 'chain-hero',
+        label: 'Cadena del día',
+        value: dailySales ? `${dailySales.saleCount} tickets` : stageLabel,
+        hint: stepCode,
+        icon: 'layers-outline',
+        variant: 'ink',
+        onPress: () => router.push(`${base}/daily-chain` as never),
+      });
+    }
+
+    if (canStaff) {
+      out.push({
+        key: 'staff',
+        label: 'Equipo',
+        value: `${activeStaffCount}`,
+        hint: activeStaffCount === 1 ? 'persona activa' : 'personas activas',
+        icon: 'people-outline',
+        variant: 'paper',
+        onPress: () => router.push(`${base}/staff` as never),
+      });
+    }
+    if (canPayroll) {
+      out.push({
+        key: 'payroll',
+        label: 'Nómina',
+        value: formatCurrency(upcomingPayrollTotal),
+        hint: 'próxima',
+        icon: 'cash-outline',
+        variant: 'paper',
+        onPress: () => router.push(`${base}/payroll` as never),
+      });
+    }
+    out.push({
+      key: 'inventory',
+      label: 'Inventario',
+      value: `${inventoryStats.products + inventoryStats.materials}`,
+      hint: `${inventoryStats.products} productos · ${inventoryStats.materials} insumos`,
+      icon: 'cube-outline',
+      variant: 'paper',
+      onPress: () => router.push(`${base}/inventory` as never),
+    });
+    out.push({
+      key: 'shifts',
+      label: canStaff ? 'Turnos' : 'Mi asistencia',
+      value: 'Abrir',
+      hint: canStaff ? 'Entradas / salidas' : 'Tu jornada',
+      icon: 'time-outline',
+      variant: 'paper',
+      onPress: () => router.push(`${base}/shifts` as never),
+    });
+
+    return out;
+  }, [
+    business,
+    canFinance,
+    canStaff,
+    canPayroll,
+    dailySales,
+    stageLabel,
+    stepCode,
+    activeStaffCount,
+    upcomingPayrollTotal,
+    inventoryStats,
+  ]);
+
+  const operationModules: DetailModule[] = useMemo(() => {
+    if (!business) return [];
+    const base = `/businesses/${business.id}`;
+    const list: DetailModule[] = [
+      {
+        key: 'sales',
+        label: canFinance ? 'Ventas' : 'Registrar venta',
+        icon: 'cart-outline',
+        onPress: () =>
+          router.push(
+            canFinance
+              ? (`${base}/sales` as never)
+              : (`${base}/sales/create` as never),
+          ),
+      },
+      {
+        key: 'inventory',
+        label: 'Inventario',
+        icon: 'cube-outline',
+        onPress: () => router.push(`${base}/inventory` as never),
+      },
+      {
+        key: 'receipts',
+        label: 'Recepciones',
+        icon: 'archive-outline',
+        onPress: () => router.push(`${base}/receipts` as never),
+      },
+    ];
+
+    if (canStaff) {
+      list.push({
+        key: 'staff',
+        label: 'Equipo',
+        icon: 'people-outline',
+        onPress: () => router.push(`${base}/staff` as never),
+      });
+    }
+    if (canSupply) {
+      list.push(
+        {
+          key: 'suppliers',
+          label: 'Proveedores',
+          icon: 'business-outline',
+          onPress: () => router.push(`${base}/suppliers` as never),
+        },
+        {
+          key: 'pos',
+          label: 'Órdenes',
+          icon: 'document-text-outline',
+          onPress: () => router.push(`${base}/purchase-orders` as never),
+        },
+      );
+    }
+    if (canConfig) {
+      list.push({
+        key: 'processes',
+        label: 'Procesos',
+        icon: 'git-network-outline',
+        onPress: () => router.push(`${base}/processes` as never),
+      });
+    }
+    list.push({
+      key: 'shifts',
+      label: 'Asistencia',
+      icon: 'time-outline',
+      onPress: () => router.push(`${base}/shifts` as never),
+    });
+    list.push({
+      key: 'chat',
+      label: 'Chat',
+      icon: 'sparkles-outline',
+      onPress: () => router.push(`${base}/chat` as never),
+    });
+    return list;
+  }, [business, canFinance, canStaff, canSupply, canConfig]);
+
+  const configModules: DetailModule[] = useMemo(() => {
+    if (!business || !canConfig) return [];
+    const base = `/businesses/${business.id}`;
+    return [
+      {
+        key: 'areas',
+        label: 'Áreas',
+        icon: 'map-outline',
+        onPress: () => router.push(`${base}/areas` as never),
+      },
+      {
+        key: 'payment-methods',
+        label: 'Pagos',
+        icon: 'card-outline',
+        onPress: () => router.push(`${base}/payment-methods` as never),
+      },
+      {
+        key: 'supplier-invoices',
+        label: 'Facturas',
+        icon: 'receipt-outline',
+        onPress: () => router.push(`${base}/supplier-invoices` as never),
+      },
+    ];
+  }, [business, canConfig]);
+
+  const facts: DetailFact[] = useMemo(() => {
+    if (!business) return [];
+    return [
+      {
+        key: 'timezone',
+        label: 'Zona horaria',
+        value: business.timezone,
+      },
+      {
+        key: 'cutoff',
+        label: 'Corte operativo',
+        value: `${String(business.operationalDayCutoffHour).padStart(2, '0')}:00 hrs`,
+        hint: 'Hora de cierre del día',
+      },
+      ...(business.createdAt
+        ? [
+            {
+              key: 'createdAt',
+              label: 'Creado',
+              value: new Date(business.createdAt).toLocaleDateString('es-MX', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              }),
+            },
+          ]
+        : []),
+    ];
+  }, [business]);
+
+  if (isLoading || !business || !onboarding || !moment) {
     return <VrittLoader />;
   }
 
-  if (!business || !onboarding) {
-    return (
-      <VrittScreen scrollable>
-        <View className="gap-8">
-          <VrittHeader
-            title="Negocio no encontrado."
-            subtitle="No pudimos cargar la información de este negocio."
-          />
-
-          <VrittButton
-            label="Volver a negocios"
-            onPress={() => router.replace('/(tabs)/businesses')}
-          />
-        </View>
-      </VrittScreen>
-    );
-  }
-
-  const getBusinessTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      RESTAURANT: 'Restaurante',
-      CAFE: 'Cafetería',
-      BAR: 'Bar',
-      RETAIL: 'Retail',
-      OTHER: 'Otro',
-    };
-    return labels[type] || type;
-  };
-
-  const activeStaffCount = staff.filter(s => s.status === 'ACTIVE').length;
+  const onboardingPercent = onboarding.completionPercentage;
 
   return (
-    <VrittScreen scrollable>
-      <View className="gap-8">
-        {/* Hero Section */}
-        <View className="gap-4">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1">
-              <Text className="text-[11px] font-bold uppercase tracking-[1px] text-veritt-mutedSoft">
-                {getBusinessTypeLabel(business.businessType)}
-              </Text>
-              <Text className="mt-1 text-[26px] font-extrabold text-veritt-text">
-                {business.name}
-              </Text>
-            </View>
-            <View className="rounded-full bg-veritt-surfaceSoft px-4 py-2">
-              <Text className="text-[12px] font-bold uppercase tracking-[1px] text-veritt-text">
-                {onboarding.completionPercentage}% completo
-              </Text>
-            </View>
-          </View>
+    <View style={{ flex: 1, backgroundColor: surface.paper }}>
+      <StatusBar barStyle="light-content" backgroundColor={surface.ink} />
 
-          {business.description && (
-            <Text className="text-[16px] leading-[24px] text-veritt-muted">
-              {business.description}
-            </Text>
-          )}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 160 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={surface.ink}
+          />
+        }
+      >
+        <VrittDetailHero
+          name={business.name}
+          businessType={business.businessType}
+          role={role}
+          roleLabel={getRoleLabel(role)}
+          tone={tone}
+          stageLabel={stageLabel}
+          stepCode={stepCode}
+          city={business.city}
+          state={business.state}
+          description={business.description}
+          onboardingPercent={onboardingPercent}
+          onBack={() => router.back()}
+          onOpenChain={() =>
+            router.push(`/businesses/${business.id}/daily-chain` as never)
+          }
+        />
 
-          {(business.city || business.state) && (
-            <View className="flex-row items-center gap-2">
-              <Ionicons name="location-outline" size={16} color="#8B8B8B" />
-              <Text className="text-[14px] text-veritt-muted">
-                {[business.city, business.state].filter(Boolean).join(', ')}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Business Stats */}
-        <View className="flex-row gap-4">
-          <View className="flex-1 rounded-card border border-veritt-border bg-veritt-surface p-4">
-            <Text className="text-[24px] font-extrabold text-veritt-text">
-              {activeStaffCount}
-            </Text>
-            <Text className="mt-1 text-[12px] font-medium uppercase tracking-[0.8px] text-veritt-mutedSoft">
-              Empleados activos
-            </Text>
-          </View>
-
-          <View className="flex-1 rounded-card border border-veritt-border bg-veritt-surface p-4">
-            <Text className="text-[24px] font-extrabold text-veritt-text">
-              {formatCurrency(upcomingPayrollTotal)}
-            </Text>
-            <Text className="mt-1 text-[12px] font-medium uppercase tracking-[0.8px] text-veritt-mutedSoft">
-              Nómina próxima
-            </Text>
-          </View>
-        </View>
-
-        {/* Business Details */}
-        <VrittCard>
-          <VrittSectionLabel className="mb-4">Detalles del negocio</VrittSectionLabel>
-
-          <View className="gap-4">
-            <View className="flex-row gap-6">
-              <View className="flex-1">
-                <Text className="text-[11px] font-bold uppercase tracking-[1px] text-veritt-mutedSoft">
-                  Identificador
-                </Text>
-                <Text className="mt-1 text-[16px] text-veritt-text">{business.slug}</Text>
-              </View>
-
-              <View className="flex-1">
-                <Text className="text-[11px] font-bold uppercase tracking-[1px] text-veritt-mutedSoft">
-                  Zona horaria
-                </Text>
-                <Text className="mt-1 text-[16px] text-veritt-text">{business.timezone}</Text>
-              </View>
-            </View>
-
-            <View>
-              <Text className="text-[11px] font-bold uppercase tracking-[1px] text-veritt-mutedSoft">
-                Corte operativo diario
-              </Text>
-              <Text className="mt-1 text-[16px] text-veritt-text">
-                {business.operationalDayCutoffHour}:00 hrs
-              </Text>
-              <Text className="mt-1 text-[13px] text-veritt-muted">
-                Hora en que termina el día operativo para cálculos de nómina y reportes
-              </Text>
-            </View>
-
-            {business.createdAt && (
-              <View>
-                <Text className="text-[11px] font-bold uppercase tracking-[1px] text-veritt-mutedSoft">
-                  Creado el
-                </Text>
-                <Text className="mt-1 text-[16px] text-veritt-text">
-                  {new Date(business.createdAt).toLocaleDateString('es-MX', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </Text>
-              </View>
-            )}
-          </View>
-        </VrittCard>
-
-        {/* Onboarding Progress */}
-        <VrittCard>
-          <VrittSectionLabel className="mb-4">Progreso de configuración</VrittSectionLabel>
-
-          <View className="gap-6">
-            <View>
-              <View className="flex-row items-center justify-between">
-                <Text className="text-[24px] font-extrabold text-veritt-text">
-                  {onboarding.completionPercentage}%
-                </Text>
-                <Text className="text-[14px] font-medium text-veritt-muted">
-                  {onboarding.currentStep}
-                </Text>
-              </View>
-              <Text className="mt-1 text-[14px] text-veritt-muted">
-                Completado del onboarding operativo
-              </Text>
-            </View>
-
-            <View className="gap-2">
-              <View className="h-4 overflow-hidden rounded-full bg-veritt-surfaceSoft">
-                <View
-                  className="h-4 rounded-full bg-gradient-to-r from-veritt-primary to-veritt-accent"
-                  style={{ width: `${onboarding.completionPercentage}%` }}
-                />
-              </View>
-              <View className="flex-row justify-between">
-                <Text className="text-[11px] font-bold uppercase tracking-[1px] text-veritt-mutedSoft">
-                  Inicio
-                </Text>
-                <Text className="text-[11px] font-bold uppercase tracking-[1px] text-veritt-mutedSoft">
-                  Completado
-                </Text>
-              </View>
-            </View>
-          </View>
-        </VrittCard>
-
-        {/* Onboarding Checklist */}
-        <VrittCard>
-          <VrittSectionLabel className="mb-4">Checklist de configuración</VrittSectionLabel>
-
-          <View className="gap-3">
-            {ONBOARDING_CHECKLIST.map((item) => {
-              const completed = Boolean(onboarding[item.key]);
-
-              return (
-                <View
-                  key={item.key}
-                  className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-3"
-                >
-                  <View className="flex-row items-center gap-3">
-                    <View
-                      className={`h-6 w-6 items-center justify-center rounded-full ${
-                        completed ? 'bg-white' : 'bg-veritt-border'
-                      }`}
-                    >
-                      {completed && (
-                        <Ionicons name="checkmark" size={14} color="#000000" />
-                      )}
-                    </View>
-                    <Text className="text-[14px] font-medium text-veritt-text">
-                      {item.label}
-                    </Text>
-                  </View>
-
-                  <Text
-                    className={`text-[11px] font-bold uppercase tracking-[1px] px-3 py-1 rounded-full ${
-                      completed
-                        ? 'bg-white text-black'
-                        : 'bg-veritt-border text-veritt-muted'
-                    }`}
-                  >
-                    {completed ? 'Completado' : 'Pendiente'}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </VrittCard>
-
-        {/* Quick Actions */}
-        <VrittCard>
-          <VrittSectionLabel className="mb-4">Acciones rápidas</VrittSectionLabel>
-
-          <View className="gap-3">
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/staff`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="people-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Administrar equipo
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    {activeStaffCount} empleados activos
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/inventory`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="cube-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Ver inventario
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    {inventoryStats.products} productos · {inventoryStats.materials} insumos ·{' '}
-                    {inventoryStats.locations} ubicaciones
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/payroll`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="cash-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Ver nómina
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Próximo pago: {formatCurrency(upcomingPayrollTotal)}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/sales`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="cart-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Ventas y POS
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Registrar ventas y ver reportes
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/areas`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="map-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Áreas
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Espacios físicos y funcionales
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/processes`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="git-network-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Procesos
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Templates y ejecuciones
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/shifts`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="time-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Control de asistencia
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Turnos y registro de entrada/salida
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/payment-methods`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="card-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Métodos de pago
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Configura cómo recibes pagos
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/suppliers`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="business-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Proveedores
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Gestiona tus proveedores de materia prima
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/purchase-orders`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="document-text-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Órdenes de compra
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Pedidos a proveedores
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/receipts`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="archive-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Recepciones
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Registro de llegada de mercancía
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/supplier-invoices`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="receipt-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Facturas de proveedor
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    Trazabilidad fiscal CFDI
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center justify-between rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-4 active:opacity-90"
-              activeOpacity={0.9}
-              onPress={() => router.push(`/businesses/${business.id}/daily-chain`)}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-white">
-                  <Ionicons name="calendar-outline" size={20} color="#000000" />
-                </View>
-                <View>
-                  <Text className="text-[16px] font-bold text-veritt-text">
-                    Cadena diaria
-                  </Text>
-                  <Text className="mt-1 text-[13px] text-veritt-muted">
-                    FAI · FCI · FID · FAF · FOP
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#8B8B8B" />
-            </TouchableOpacity>
-          </View>
-        </VrittCard>
-
-        {/* Pending Steps */}
-        {pendingSteps.length > 0 && (
-          <VrittCard>
-            <VrittSectionLabel className="mb-4">Próximos pasos</VrittSectionLabel>
-
-            <View className="gap-3">
-              {pendingSteps.map((step, index) => (
-                <View
-                  key={step}
-                  className="flex-row items-start gap-3 rounded-veritt border border-veritt-border bg-veritt-surfaceSoft px-4 py-3"
-                >
-                  <View className="mt-1 h-6 w-6 items-center justify-center rounded-full bg-veritt-border">
-                    <Text className="text-[12px] font-bold text-veritt-text">
-                      {index + 1}
-                    </Text>
-                  </View>
-                  <Text className="flex-1 text-[14px] leading-[22px] text-veritt-text">
-                    {step}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </VrittCard>
-        )}
-
-        <View className="gap-3.5">
-          <VrittButton
-            label="Editar información del negocio"
-            variant="secondary"
-            onPress={() => {
-              // TODO: Implement edit business screen
-              Alert.alert('Próximamente', 'La edición del negocio estará disponible pronto.');
+        {/* Drawer que sube sobre el hero con esquinas redondeadas */}
+        <View
+          style={{
+            backgroundColor: surface.paper,
+            marginTop: -28,
+            borderTopLeftRadius: 28,
+            borderTopRightRadius: 28,
+            paddingTop: 22,
+            paddingHorizontal: 18,
+            gap: 22,
+            minHeight: 500,
+          }}
+        >
+          <View
+            style={{
+              alignSelf: 'center',
+              width: 44,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: 'rgba(11,14,18,0.1)',
+              marginBottom: 4,
             }}
           />
 
-          <VrittButton
-            label="Volver a mis negocios"
-            variant="secondary"
-            onPress={() => router.replace('/(tabs)/businesses')}
+          <VrittDetailBento metrics={metrics} />
+
+          <VrittDetailPending
+            steps={pendingSteps}
+            onStart={() =>
+              router.push(`/businesses/${business.id}/daily-chain` as never)
+            }
+          />
+
+          <VrittDetailModuleGrid
+            eyebrow="Operación"
+            title="Módulos del negocio"
+            modules={operationModules}
+          />
+
+          {configModules.length > 0 ? (
+            <VrittDetailModuleGrid
+              eyebrow="Configuración"
+              title="Ajustes del espacio"
+              modules={configModules}
+            />
+          ) : null}
+
+          <VrittDetailInfo
+            eyebrow="Detalles"
+            title="Información del espacio"
+            facts={facts}
           />
         </View>
-      </View>
-    </VrittScreen>
+      </ScrollView>
+    </View>
   );
 }
+
