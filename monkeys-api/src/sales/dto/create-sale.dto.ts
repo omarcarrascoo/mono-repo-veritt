@@ -32,8 +32,12 @@ export class CreateSaleDto {
   @IsString()
   areaId?: string;
 
+  // Opcional. Si no viene, el servidor resuelve el staffProfile vinculado
+  // al usuario autenticado. Managers pueden pasarlo explícitamente para
+  // registrar ventas de otros operadores.
+  @IsOptional()
   @IsString()
-  operatorStaffId: string;
+  operatorStaffId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

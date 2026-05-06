@@ -41,7 +41,10 @@ export class SalesService {
   }
 
   async create(businessId: string, userId: string, dto: CreateSaleDto) {
-    await this.ensureBusinessAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+    const isManager = ['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(
+      membership.role,
+    );
 
     // Check if the operational day is open (FAI authorized)
     const dayOpen = await this.dailyChainService.isDayOpen(businessId);
@@ -51,10 +54,33 @@ export class SalesService {
       );
     }
 
-    // Validate operator
-    const operator = await this.salesRepository.findStaffProfile(dto.operatorStaffId);
+    // Resolve operator staffProfile:
+    //  - Si viene dto.operatorStaffId: usarlo. OPERATOR/SUPERVISOR sólo pueden
+    //    pasar su propio staffProfile; manager puede pasar cualquiera.
+    //  - Si no viene: resolver por userId del JWT.
+    let operatorStaffId = dto.operatorStaffId;
+    if (!operatorStaffId) {
+      const own = await this.salesRepository.findStaffProfileByUser(
+        businessId,
+        userId,
+      );
+      if (!own) {
+        throw new BadRequestException(
+          'No tienes un perfil de staff vinculado en este negocio',
+        );
+      }
+      operatorStaffId = own.id;
+    }
+
+    const operator = await this.salesRepository.findStaffProfile(operatorStaffId);
     if (!operator || operator.businessId !== businessId) {
       throw new NotFoundException('Operator staff member not found in this business');
+    }
+
+    if (!isManager && operator.userId !== userId) {
+      throw new ForbiddenException(
+        'Solo puedes registrar ventas con tu propio usuario',
+      );
     }
 
     // Validate area
@@ -148,7 +174,7 @@ export class SalesService {
         data: {
           businessId,
           areaId: dto.areaId,
-          operatorStaffId: dto.operatorStaffId,
+          operatorStaffId,
           saleNumber,
           subtotal,
           taxAmount,
@@ -255,7 +281,10 @@ export class SalesService {
   }
 
   async findAll(businessId: string, userId: string, filters: { status?: string; areaId?: string; operatorStaffId?: string; from?: string; to?: string }) {
-    await this.ensureManagementAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+    const isManager = ['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(
+      membership.role,
+    );
 
     let fromDate: Date | undefined;
     let toDate: Date | undefined;
@@ -269,21 +298,48 @@ export class SalesService {
       toDate.setUTCHours(23, 59, 59, 999);
     }
 
+    // OPERATOR/SUPERVISOR: sólo ven sus propias ventas. Ignoramos cualquier
+    // operatorStaffId del query que no sea el propio.
+    let operatorStaffId = filters.operatorStaffId;
+    if (!isManager) {
+      const own = await this.salesRepository.findStaffProfileByUser(
+        businessId,
+        userId,
+      );
+      if (!own) return [];
+      operatorStaffId = own.id;
+    }
+
     return this.salesRepository.findAll(businessId, {
       status: filters.status,
       areaId: filters.areaId,
-      operatorStaffId: filters.operatorStaffId,
+      operatorStaffId,
       from: fromDate,
       to: toDate,
     });
   }
 
   async findOne(businessId: string, saleId: string, userId: string) {
-    await this.ensureManagementAccess(businessId, userId);
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+    const isManager = ['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(
+      membership.role,
+    );
+
     const sale = await this.salesRepository.findOne(saleId);
     if (!sale || sale.businessId !== businessId) {
       throw new NotFoundException('Sale not found');
     }
+
+    if (!isManager) {
+      const own = await this.salesRepository.findStaffProfileByUser(
+        businessId,
+        userId,
+      );
+      if (!own || sale.operatorStaffId !== own.id) {
+        throw new ForbiddenException('No puedes ver ventas de otro operador');
+      }
+    }
+
     return sale;
   }
 

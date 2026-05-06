@@ -41,6 +41,12 @@ export class SalesRepository {
     });
   }
 
+  findStaffProfileByUser(businessId: string, userId: string) {
+    return this.prisma.staffProfile.findFirst({
+      where: { businessId, userId, status: 'ACTIVE' },
+    });
+  }
+
   findArea(areaId: string) {
     return this.prisma.area.findUnique({ where: { id: areaId } });
   }

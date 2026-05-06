@@ -83,7 +83,12 @@ export interface CreateSalePaymentDto {
 
 export interface CreateSaleDto {
   areaId?: string
-  operatorStaffId: string
+  /**
+   * Opcional. Si no viene, el backend resuelve el staffProfile del usuario
+   * autenticado (JWT). Managers pueden pasar un ID distinto para registrar
+   * ventas a nombre de otro operador.
+   */
+  operatorStaffId?: string
   items: CreateSaleItemDto[]
   payments: CreateSalePaymentDto[]
   taxAmount?: number
