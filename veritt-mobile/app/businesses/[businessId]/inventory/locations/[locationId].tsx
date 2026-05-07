@@ -1,92 +1,126 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { Alert, Text, View } from 'react-native'
-import { router, useLocalSearchParams } from 'expo-router'
-import { inventoryApi } from '@/api/modules/inventory.api'
-import { InventoryLocation, InventoryLocationType } from '@/types/inventory.types'
-import { getApiErrorMessage } from '@/utils/error.utils'
-import { VrittScreen } from '@/components/ui/VrittScreen'
-import { VrittHeader } from '@/components/ui/VrittHeader'
-import { VrittCard } from '@/components/ui/VrittCard'
-import { VrittButton } from '@/components/ui/VrittButton'
-import { VrittInput } from '@/components/ui/VrittInput'
-import { VrittSelect } from '@/components/ui/VrittSelect'
-import { VrittLoader } from '@/components/ui/VrittLoader'
-import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel'
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  View,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 
-const LOCATION_TYPE_OPTIONS: { label: string; value: InventoryLocationType }[] = [
-  { label: 'Principal', value: 'MAIN' },
-  { label: 'Almacén', value: 'WAREHOUSE' },
-  { label: 'Restaurante', value: 'RESTAURANT' },
-  { label: 'Cocina', value: 'KITCHEN' },
-  { label: 'Otro', value: 'OTHER' },
-]
+import { inventoryApi } from '@/api/modules/inventory.api';
+import { notify } from '@/lib/notify';
+import { getApiErrorMessage } from '@/utils/error.utils';
+import {
+  formatInventoryStatus,
+  formatLocationType,
+} from '@/lib/inventory-formatters';
+import type {
+  InventoryLocation,
+  InventoryLocationType,
+} from '@/types/inventory.types';
+import { surface } from '@/constants/design-tokens';
 
-function formatLocationType(type: string) {
-  const map: Record<string, string> = {
-    MAIN: 'Principal',
-    WAREHOUSE: 'Almacén',
-    RESTAURANT: 'Restaurante',
-    KITCHEN: 'Cocina',
-    OTHER: 'Otro',
-  }
-  return map[type] || type
-}
+import { VrittLoader } from '@/components/ui/VrittLoader';
+import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
+import { VrittInventoryCard } from '@/components/inventory/VrittInventoryCard';
+import { VrittInventoryFacts } from '@/components/inventory/VrittInventoryFacts';
+import {
+  VrittPaperInput,
+  VrittPaperOptionPicker,
+} from '@/components/inventory/VrittPaperInput';
+import { VrittInventoryFooterActions } from '@/components/inventory/VrittInventoryFooterActions';
+
+const TYPE_OPTIONS: {
+  label: string;
+  value: InventoryLocationType;
+  icon:
+    | 'star-outline'
+    | 'archive-outline'
+    | 'storefront-outline'
+    | 'restaurant-outline'
+    | 'location-outline';
+}[] = [
+  { label: 'Principal', value: 'MAIN', icon: 'star-outline' },
+  { label: 'Almacén', value: 'WAREHOUSE', icon: 'archive-outline' },
+  { label: 'Restaurante', value: 'RESTAURANT', icon: 'storefront-outline' },
+  { label: 'Cocina', value: 'KITCHEN', icon: 'restaurant-outline' },
+  { label: 'Otro', value: 'OTHER', icon: 'location-outline' },
+];
 
 export default function LocationDetailScreen() {
-  const { businessId, locationId } = useLocalSearchParams<{ businessId: string; locationId: string }>()
-  const [location, setLocation] = useState<InventoryLocation | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { businessId, locationId } = useLocalSearchParams<{
+    businessId: string;
+    locationId: string;
+  }>();
 
-  const [editName, setEditName] = useState('')
-  const [editType, setEditType] = useState<InventoryLocationType>('MAIN')
+  const [location, setLocation] = useState<InventoryLocation | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState<InventoryLocationType>('MAIN');
 
   const loadLocation = useCallback(async () => {
-    if (!businessId || !locationId) return
+    if (!businessId || !locationId) return;
     try {
-      setIsLoading(true)
-      const locations = await inventoryApi.listLocations(businessId)
-      const found = locations.find((l) => l.id === locationId)
+      setIsLoading(true);
+      const list = await inventoryApi.listLocations(businessId);
+      const found = list.find((l) => l.id === locationId);
       if (found) {
-        setLocation(found)
-        setEditName(found.name)
-        setEditType(found.type)
+        setLocation(found);
+        setEditName(found.name);
+        setEditType(found.type);
+      } else {
+        setLocation(null);
       }
-    } catch (error) {
-      Alert.alert('Error', getApiErrorMessage(error, 'No pudimos cargar la ubicación.'))
+    } catch (err) {
+      notify.error(
+        'No pudimos cargar la ubicación',
+        getApiErrorMessage(err, 'Verifica tu conexión.'),
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [businessId, locationId])
+  }, [businessId, locationId]);
 
-  useEffect(() => { loadLocation() }, [loadLocation])
+  useEffect(() => {
+    loadLocation();
+  }, [loadLocation]);
 
-  const handleSave = async () => {
-    if (!businessId || !locationId || !editName.trim()) return
+  const onBack = useCallback(() => router.back(), []);
+
+  const handleSave = useCallback(async () => {
+    if (!businessId || !locationId || !editName.trim()) return;
     try {
-      setIsSubmitting(true)
+      setIsSubmitting(true);
       await inventoryApi.updateLocation(businessId, locationId, {
         name: editName.trim(),
         type: editType,
-      })
-      setIsEditing(false)
-      loadLocation()
-    } catch (error) {
-      Alert.alert('Error', getApiErrorMessage(error, 'No pudimos actualizar la ubicación.'))
+      });
+      notify.success('Cambios guardados', 'La ubicación fue actualizada.');
+      setIsEditing(false);
+      loadLocation();
+    } catch (err) {
+      notify.error(
+        'No pudimos actualizar',
+        getApiErrorMessage(err, 'Intenta de nuevo en unos segundos.'),
+      );
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  }, [businessId, locationId, editName, editType, loadLocation]);
 
-  const handleToggleStatus = () => {
-    if (!businessId || !locationId) return
-    const newStatus = location?.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-    const label = newStatus === 'ACTIVE' ? 'activar' : 'desactivar'
+  const handleToggleStatus = useCallback(() => {
+    if (!businessId || !locationId || !location) return;
+    const newStatus = location.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const verb = newStatus === 'ACTIVE' ? 'activar' : 'desactivar';
 
     Alert.alert(
-      `¿${label.charAt(0).toUpperCase() + label.slice(1)} ubicación?`,
-      `¿Quieres ${label} "${location?.name}"?`,
+      `¿${verb.charAt(0).toUpperCase() + verb.slice(1)} ubicación?`,
+      `¿Quieres ${verb} "${location.name}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -94,90 +128,152 @@ export default function LocationDetailScreen() {
           style: newStatus === 'INACTIVE' ? 'destructive' : 'default',
           onPress: async () => {
             try {
-              await inventoryApi.updateLocation(businessId, locationId, { status: newStatus })
-              loadLocation()
-            } catch (error) {
-              Alert.alert('Error', getApiErrorMessage(error, 'No pudimos actualizar el status.'))
+              await inventoryApi.updateLocation(businessId, locationId, {
+                status: newStatus,
+              });
+              notify.success(
+                'Listo',
+                `Ubicación ${
+                  newStatus === 'ACTIVE' ? 'reactivada' : 'desactivada'
+                }.`,
+              );
+              loadLocation();
+            } catch (err) {
+              notify.error(
+                'No pudimos actualizar',
+                getApiErrorMessage(err, 'Intenta de nuevo.'),
+              );
             }
           },
         },
       ],
-    )
+    );
+  }, [businessId, locationId, location, loadLocation]);
+
+  if (isLoading) return <VrittLoader />;
+
+  if (!location) {
+    return (
+      <View style={{ flex: 1, backgroundColor: surface.paper }}>
+        <StatusBar barStyle="dark-content" backgroundColor={surface.paper} />
+        <VrittInventoryHeader
+          eyebrow="Ubicación"
+          title="No encontrada"
+          onBack={onBack}
+        />
+      </View>
+    );
   }
 
-  if (isLoading) return <VrittLoader />
-  if (!location) return <VrittScreen><VrittHeader title="Ubicación no encontrada." /></VrittScreen>
-
   return (
-    <VrittScreen scrollable>
-      <View className="gap-8">
-        <VrittHeader
-          title={location.name}
-          subtitle={`${formatLocationType(location.type)} · ${location.status === 'ACTIVE' ? 'Activa' : 'Inactiva'}${location.isPrimary ? ' · Principal' : ''}`}
-        />
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: surface.paper }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={surface.paper} />
 
+      <VrittInventoryHeader
+        eyebrow={
+          location.isPrimary
+            ? 'Ubicación principal'
+            : 'Ubicación de inventario'
+        }
+        title={location.name}
+        onBack={onBack}
+      />
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 28,
+          paddingBottom: 220,
+          gap: 28,
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {!isEditing ? (
           <>
-            <VrittCard>
-              <VrittSectionLabel className="mb-3">Información</VrittSectionLabel>
-              <View className="gap-2">
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Tipo</Text>
-                  <Text className="text-veritt-text text-[15px]">{formatLocationType(location.type)}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Estado</Text>
-                  <Text className="text-veritt-text text-[15px]">{location.status === 'ACTIVE' ? 'Activa' : 'Inactiva'}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Principal</Text>
-                  <Text className="text-veritt-text text-[15px]">{location.isPrimary ? 'Sí' : 'No'}</Text>
-                </View>
-                {location.area && (
-                  <View className="flex-row justify-between">
-                    <Text className="text-veritt-muted text-[15px]">Área</Text>
-                    <Text className="text-veritt-text text-[15px]">{location.area.name}</Text>
-                  </View>
-                )}
-              </View>
-            </VrittCard>
-
-            <View className="gap-3.5">
-              <VrittButton label="Editar" onPress={() => setIsEditing(true)} />
-              {!location.isPrimary && (
-                <VrittButton
-                  label={location.status === 'ACTIVE' ? 'Desactivar ubicación' : 'Activar ubicación'}
-                  variant="secondary"
-                  onPress={handleToggleStatus}
-                />
-              )}
-              <VrittButton
-                label="Volver al inventario"
-                variant="secondary"
-                onPress={() => router.replace(`/businesses/${businessId}/inventory`)}
+            <VrittInventoryCard eyebrow="Información">
+              <VrittInventoryFacts
+                facts={[
+                  { label: 'Tipo', value: formatLocationType(location.type) },
+                  {
+                    label: 'Estado',
+                    value: formatInventoryStatus(location.status),
+                  },
+                  {
+                    label: 'Principal',
+                    value: location.isPrimary ? 'Sí' : 'No',
+                  },
+                  ...(location.area
+                    ? [{ label: 'Área', value: location.area.name }]
+                    : []),
+                ]}
               />
-            </View>
+            </VrittInventoryCard>
+
+            <VrittInventoryFooterActions
+              primary={{
+                label: 'Editar ubicación',
+                icon: 'create-outline',
+                onPress: () => setIsEditing(true),
+              }}
+              secondary={
+                !location.isPrimary
+                  ? {
+                      label:
+                        location.status === 'ACTIVE'
+                          ? 'Desactivar'
+                          : 'Reactivar',
+                      onPress: handleToggleStatus,
+                    }
+                  : undefined
+              }
+            />
           </>
         ) : (
           <>
-            <View className="gap-4">
-              <VrittInput label="Nombre" value={editName} onChangeText={setEditName} editable={!isSubmitting} />
-              <VrittSelect
-                label="Tipo"
-                value={editType}
-                options={LOCATION_TYPE_OPTIONS}
-                onChange={setEditType}
-                disabled={isSubmitting}
-              />
-            </View>
+            <VrittInventoryCard eyebrow="Editar datos">
+              <View style={{ gap: 14 }}>
+                <VrittPaperInput
+                  label="Nombre"
+                  value={editName}
+                  onChangeText={setEditName}
+                  editable={!isSubmitting}
+                  required
+                />
+                <VrittPaperOptionPicker
+                  label="Tipo"
+                  options={TYPE_OPTIONS}
+                  value={editType}
+                  onChange={setEditType}
+                />
+              </View>
+            </VrittInventoryCard>
 
-            <View className="gap-3.5">
-              <VrittButton label="Guardar cambios" loading={isSubmitting} onPress={handleSave} />
-              <VrittButton label="Cancelar" variant="secondary" onPress={() => setIsEditing(false)} disabled={isSubmitting} />
-            </View>
+            <VrittInventoryFooterActions
+              primary={{
+                label: 'Guardar cambios',
+                icon: 'save-outline',
+                onPress: handleSave,
+                loading: isSubmitting,
+                disabled: !editName.trim(),
+              }}
+              secondary={{
+                label: 'Cancelar',
+                onPress: () => {
+                  setIsEditing(false);
+                  setEditName(location.name);
+                  setEditType(location.type);
+                },
+                disabled: isSubmitting,
+              }}
+            />
           </>
         )}
-      </View>
-    </VrittScreen>
-  )
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
 }

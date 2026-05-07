@@ -62,3 +62,57 @@ export function formatProductType(type: ProductType): string {
 export function formatInventoryStatus(status: InventoryStatus): string {
   return INVENTORY_STATUS_LABELS[status] ?? status
 }
+
+// ── Stock semantics ────────────────────────────────────────────────────
+// Tono de stock unificado (sin importar si es material o producto).
+
+export type StockTone = 'ok' | 'low' | 'out'
+
+export interface StockHealth {
+  tone: StockTone
+  label: string
+  /** Porcentaje 0..1 respecto al mínimo (cap a 1). 0 si no hay mínimo. */
+  ratio: number
+}
+
+/**
+ * Calcula la salud del stock: si está agotado (<=0), bajo el mínimo, o sano.
+ * `ratio` se calcula como current/min capped a 1, o 1 si min es 0 y hay stock.
+ */
+export function getStockHealth(
+  current: DecimalValue,
+  min: DecimalValue,
+): StockHealth {
+  const c = toInventoryNumber(current)
+  const m = toInventoryNumber(min)
+  if (c <= 0) {
+    return { tone: 'out', label: 'Agotado', ratio: 0 }
+  }
+  if (m > 0 && c <= m) {
+    return { tone: 'low', label: 'Stock bajo', ratio: Math.max(0.05, c / m) }
+  }
+  if (m > 0) {
+    return { tone: 'ok', label: 'Disponible', ratio: Math.min(1, c / m) }
+  }
+  return { tone: 'ok', label: 'Disponible', ratio: 1 }
+}
+
+/** Valor de inventario = stock × costo unitario, en moneda base. */
+export function valueOfMaterial(
+  current: DecimalValue,
+  unitCost: DecimalValue,
+): number {
+  return toInventoryNumber(current) * toInventoryNumber(unitCost)
+}
+
+/** Margen absoluto y % sobre precio de venta. */
+export function calcProductMargin(
+  salePrice: DecimalValue,
+  cost: DecimalValue,
+): { absolute: number; percent: number } {
+  const sp = toInventoryNumber(salePrice)
+  const c = toInventoryNumber(cost)
+  const absolute = sp - c
+  const percent = sp > 0 ? (absolute / sp) * 100 : 0
+  return { absolute, percent }
+}

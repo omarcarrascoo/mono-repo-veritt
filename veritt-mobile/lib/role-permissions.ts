@@ -54,6 +54,11 @@ export const permissions = {
   canSeeShifts: (role: MembershipRole | null | undefined) =>
     has(role, AUTHORIZATION_ROLES),
 
+  // CRUD de insumos, productos y ubicaciones de inventario. OPERATOR sólo
+  // puede ver el inventario en modo lectura — no crear ni editar.
+  canManageInventory: (role: MembershipRole | null | undefined) =>
+    has(role, CONFIG_ROLES),
+
   // OPERATOR-friendly: todos los miembros activos pueden registrar ventas y
   // marcar su propia asistencia.
   canCreateSale: (role: MembershipRole | null | undefined) => !!role,

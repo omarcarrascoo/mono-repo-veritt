@@ -1,84 +1,123 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { Alert, Text, View } from 'react-native'
-import { router, useLocalSearchParams } from 'expo-router'
-import { inventoryApi } from '@/api/modules/inventory.api'
-import { Product } from '@/types/inventory.types'
-import { getApiErrorMessage } from '@/utils/error.utils'
-import { VrittScreen } from '@/components/ui/VrittScreen'
-import { VrittHeader } from '@/components/ui/VrittHeader'
-import { VrittCard } from '@/components/ui/VrittCard'
-import { VrittButton } from '@/components/ui/VrittButton'
-import { VrittInput } from '@/components/ui/VrittInput'
-import { VrittLoader } from '@/components/ui/VrittLoader'
-import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel'
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  View,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 
-function formatNum(val: number | string) {
-  return Number(val).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-}
+import { businessesApi } from '@/api/modules/businesses.api';
+import { inventoryApi } from '@/api/modules/inventory.api';
+import { useBusinessStore } from '@/store/business.store';
+import { permissions } from '@/lib/role-permissions';
+import { notify } from '@/lib/notify';
+import { getApiErrorMessage } from '@/utils/error.utils';
+import {
+  calcProductMargin,
+  formatInventoryCurrency,
+  formatInventoryQuantity,
+  formatInventoryStatus,
+  formatProductType,
+  getStockHealth,
+  toInventoryNumber,
+} from '@/lib/inventory-formatters';
+import type { Business } from '@/types/business.types';
+import type { Product } from '@/types/inventory.types';
+import { palette, surface } from '@/constants/design-tokens';
 
-function formatCurrency(val: number | string) {
-  return `$${Number(val).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function formatProductType(type: string) {
-  return type === 'RECIPE' ? 'Con receta' : 'Directo'
-}
+import { VrittLoader } from '@/components/ui/VrittLoader';
+import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
+import { VrittInventoryCard } from '@/components/inventory/VrittInventoryCard';
+import { VrittInventoryFacts } from '@/components/inventory/VrittInventoryFacts';
+import { VrittInventoryHero } from '@/components/inventory/VrittInventoryHero';
+import { VrittStockBar } from '@/components/inventory/VrittStockTone';
+import { VrittCostBreakdown } from '@/components/inventory/VrittCostBreakdown';
+import { VrittPaperInput } from '@/components/inventory/VrittPaperInput';
+import { VrittInventoryFooterActions } from '@/components/inventory/VrittInventoryFooterActions';
 
 export default function ProductDetailScreen() {
-  const { businessId, productId } = useLocalSearchParams<{ businessId: string; productId: string }>()
-  const [product, setProduct] = useState<Product | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { businessId, productId } = useLocalSearchParams<{
+    businessId: string;
+    productId: string;
+  }>();
 
-  const [editName, setEditName] = useState('')
-  const [editCategory, setEditCategory] = useState('')
-  const [editMinStock, setEditMinStock] = useState('')
+  const role = useBusinessStore((s) =>
+    businessId ? s.getRole(businessId) : null,
+  );
+  const canManageInventory = permissions.canManageInventory(role);
 
-  const loadProduct = useCallback(async () => {
-    if (!businessId || !productId) return
+  const [product, setProduct] = useState<Product | null>(null);
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editMinStock, setEditMinStock] = useState('');
+
+  const loadAll = useCallback(async () => {
+    if (!businessId || !productId) return;
     try {
-      setIsLoading(true)
-      const data = await inventoryApi.getProduct(businessId, productId)
-      setProduct(data)
-      setEditName(data.name)
-      setEditCategory(data.category ?? '')
-      setEditMinStock(String(Number(data.minStock)))
-    } catch (error) {
-      Alert.alert('Error', getApiErrorMessage(error, 'No pudimos cargar el producto.'))
+      setIsLoading(true);
+      const [bizData, prodData] = await Promise.all([
+        businessesApi.getById(businessId),
+        inventoryApi.getProduct(businessId, productId),
+      ]);
+      setBusiness(bizData);
+      setProduct(prodData);
+      setEditName(prodData.name);
+      setEditCategory(prodData.category ?? '');
+      setEditMinStock(String(Number(prodData.minStock)));
+    } catch (err) {
+      notify.error(
+        'No pudimos cargar el producto',
+        getApiErrorMessage(err, 'Verifica tu conexión.'),
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [businessId, productId])
+  }, [businessId, productId]);
 
-  useEffect(() => { loadProduct() }, [loadProduct])
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
-  const handleSave = async () => {
-    if (!businessId || !productId || !editName.trim()) return
+  const onBack = useCallback(() => router.back(), []);
+
+  const handleSave = useCallback(async () => {
+    if (!businessId || !productId || !editName.trim()) return;
     try {
-      setIsSubmitting(true)
+      setIsSubmitting(true);
       await inventoryApi.updateProduct(businessId, productId, {
         name: editName.trim(),
         category: editCategory.trim() || undefined,
         minStock: Number(editMinStock) || 0,
-      })
-      setIsEditing(false)
-      loadProduct()
-    } catch (error) {
-      Alert.alert('Error', getApiErrorMessage(error, 'No pudimos actualizar el producto.'))
+      });
+      notify.success('Cambios guardados', 'El producto fue actualizado.');
+      setIsEditing(false);
+      loadAll();
+    } catch (err) {
+      notify.error(
+        'No pudimos actualizar',
+        getApiErrorMessage(err, 'Intenta de nuevo en unos segundos.'),
+      );
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  }, [businessId, productId, editName, editCategory, editMinStock, loadAll]);
 
-  const handleToggleStatus = () => {
-    if (!businessId || !productId) return
-    const newStatus = product?.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
-    const label = newStatus === 'ACTIVE' ? 'activar' : 'desactivar'
+  const handleToggleStatus = useCallback(() => {
+    if (!businessId || !productId || !product) return;
+    const newStatus = product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const verb = newStatus === 'ACTIVE' ? 'activar' : 'desactivar';
 
     Alert.alert(
-      `¿${label.charAt(0).toUpperCase() + label.slice(1)} producto?`,
-      `¿Quieres ${label} "${product?.name}"?`,
+      `¿${verb.charAt(0).toUpperCase() + verb.slice(1)} producto?`,
+      `¿Quieres ${verb} "${product.name}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -86,136 +125,315 @@ export default function ProductDetailScreen() {
           style: newStatus === 'INACTIVE' ? 'destructive' : 'default',
           onPress: async () => {
             try {
-              await inventoryApi.updateProduct(businessId, productId, { status: newStatus })
-              loadProduct()
-            } catch (error) {
-              Alert.alert('Error', getApiErrorMessage(error, 'No pudimos actualizar el status.'))
+              await inventoryApi.updateProduct(businessId, productId, {
+                status: newStatus,
+              });
+              notify.success(
+                'Listo',
+                `Producto ${
+                  newStatus === 'ACTIVE' ? 'reactivado' : 'desactivado'
+                }.`,
+              );
+              loadAll();
+            } catch (err) {
+              notify.error(
+                'No pudimos actualizar',
+                getApiErrorMessage(err, 'Intenta de nuevo.'),
+              );
             }
           },
         },
       ],
-    )
+    );
+  }, [businessId, productId, product, loadAll]);
+
+  const health = useMemo(
+    () =>
+      product
+        ? getStockHealth(product.currentStock, product.minStock)
+        : null,
+    [product],
+  );
+
+  const margin = useMemo(
+    () =>
+      product
+        ? calcProductMargin(product.currentSalePrice, product.currentCost)
+        : null,
+    [product],
+  );
+
+  if (isLoading) return <VrittLoader />;
+
+  if (!product) {
+    return (
+      <View style={{ flex: 1, backgroundColor: surface.paper }}>
+        <StatusBar barStyle="dark-content" backgroundColor={surface.paper} />
+        <VrittInventoryHeader
+          eyebrow="Producto"
+          title="No encontrado"
+          onBack={onBack}
+        />
+      </View>
+    );
   }
 
-  if (isLoading) return <VrittLoader />
-  if (!product) return <VrittScreen><VrittHeader title="Producto no encontrado." /></VrittScreen>
+  const currency = business?.defaultCurrency || 'MXN';
+  const stockValue =
+    toInventoryNumber(product.currentStock) *
+    toInventoryNumber(product.currentCost);
+  const heroTone =
+    health?.tone === 'out'
+      ? 'danger'
+      : health?.tone === 'low'
+      ? 'warning'
+      : 'neutral';
 
-  const margin = Number(product.currentSalePrice) - Number(product.currentCost)
-  const marginPercent = Number(product.currentSalePrice) > 0
-    ? ((margin / Number(product.currentSalePrice)) * 100).toFixed(1)
-    : '0.0'
+  const valueColorForStock =
+    health?.tone === 'out'
+      ? palette.danger
+      : health?.tone === 'low'
+      ? palette.amberDeep
+      : undefined;
 
   return (
-    <VrittScreen scrollable>
-      <View className="gap-8">
-        <VrittHeader
-          title={product.name}
-          subtitle={`${formatProductType(product.type)} · ${product.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}`}
-        />
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: surface.paper }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={surface.paper} />
 
+      <VrittInventoryHeader
+        eyebrow={formatProductType(product.type)}
+        title={product.name}
+        onBack={onBack}
+      />
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 28,
+          paddingBottom: 220,
+          gap: 28,
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {!isEditing ? (
           <>
-            <VrittCard>
-              <VrittSectionLabel className="mb-3">Información</VrittSectionLabel>
-              <View className="gap-2">
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Tipo</Text>
-                  <Text className="text-veritt-text text-[15px]">{formatProductType(product.type)}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Categoría</Text>
-                  <Text className="text-veritt-text text-[15px]">{product.category || 'Sin categoría'}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Unidad de stock</Text>
-                  <Text className="text-veritt-text text-[15px]">{product.stockUnit}</Text>
-                </View>
-              </View>
-            </VrittCard>
+            <VrittInventoryHero
+              eyebrow={`Precio · ${health?.label ?? ''}`}
+              primaryValue={formatInventoryCurrency(
+                product.currentSalePrice,
+                currency,
+              )}
+              primaryLabel={`Costo ${formatInventoryCurrency(
+                product.currentCost,
+                currency,
+              )} · margen ${margin ? margin.percent.toFixed(0) : 0}%`}
+              tone={heroTone}
+              metrics={[
+                {
+                  label: 'Stock',
+                  value: formatInventoryQuantity(
+                    product.currentStock,
+                    product.stockUnit,
+                  ),
+                  tone:
+                    health?.tone === 'out'
+                      ? 'danger'
+                      : health?.tone === 'low'
+                      ? 'warning'
+                      : 'neutral',
+                },
+                {
+                  label: 'Mínimo',
+                  value: formatInventoryQuantity(
+                    product.minStock,
+                    product.stockUnit,
+                  ),
+                },
+                {
+                  label: 'Valor',
+                  value: formatInventoryCurrency(stockValue, currency),
+                },
+              ]}
+            />
 
-            <VrittCard>
-              <VrittSectionLabel className="mb-3">Precios y costos</VrittSectionLabel>
-              <View className="gap-2">
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Precio de venta</Text>
-                  <Text className="text-veritt-text text-[15px] font-bold">{formatCurrency(product.currentSalePrice)}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Costo total</Text>
-                  <Text className="text-veritt-text text-[15px]">{formatCurrency(product.currentCost)}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Costo materiales</Text>
-                  <Text className="text-veritt-text text-[15px]">{formatCurrency(product.currentMaterialCost)}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Mano de obra</Text>
-                  <Text className="text-veritt-text text-[15px]">{formatCurrency(product.currentDirectLaborCost)}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">CIF asignado</Text>
-                  <Text className="text-veritt-text text-[15px]">{formatCurrency(product.currentAllocatedCifCost)}</Text>
-                </View>
-                <View className="mt-2 rounded-veritt bg-veritt-surface px-3 py-2 border border-veritt-border">
-                  <Text className="text-veritt-text text-[14px] font-bold">
-                    Margen: {formatCurrency(margin)} ({marginPercent}%)
-                  </Text>
-                </View>
+            <VrittInventoryCard eyebrow="Salud del stock">
+              <View style={{ gap: 10 }}>
+                <VrittStockBar
+                  tone={health?.tone ?? 'ok'}
+                  ratio={health?.ratio ?? 0}
+                  height={8}
+                />
+                <VrittInventoryFacts
+                  facts={[
+                    {
+                      label: 'Stock actual',
+                      value: formatInventoryQuantity(
+                        product.currentStock,
+                        product.stockUnit,
+                      ),
+                      highlight: true,
+                      valueColor: valueColorForStock,
+                    },
+                    {
+                      label: 'Stock mínimo',
+                      value: formatInventoryQuantity(
+                        product.minStock,
+                        product.stockUnit,
+                      ),
+                    },
+                    {
+                      label: 'Venta diaria estimada',
+                      value:
+                        product.estimatedDailySalesVolume != null
+                          ? formatInventoryQuantity(
+                              product.estimatedDailySalesVolume,
+                              product.stockUnit,
+                            )
+                          : '—',
+                    },
+                  ]}
+                />
               </View>
-            </VrittCard>
+            </VrittInventoryCard>
 
-            <VrittCard>
-              <VrittSectionLabel className="mb-3">Inventario</VrittSectionLabel>
-              <View className="gap-2">
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Stock actual</Text>
-                  <Text className="text-veritt-text text-[15px] font-bold">
-                    {formatNum(product.currentStock)} {product.stockUnit}
-                  </Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-veritt-muted text-[15px]">Stock mínimo</Text>
-                  <Text className="text-veritt-text text-[15px]">
-                    {formatNum(product.minStock)} {product.stockUnit}
-                  </Text>
-                </View>
-                {Number(product.currentStock) <= Number(product.minStock) && Number(product.minStock) > 0 && (
-                  <View className="mt-2 rounded-veritt bg-red-900/30 px-3 py-2">
-                    <Text className="text-red-400 text-[13px] font-bold">Stock bajo el mínimo</Text>
-                  </View>
-                )}
+            <VrittInventoryCard eyebrow="Costo y margen">
+              <View style={{ gap: 14 }}>
+                <VrittCostBreakdown
+                  rows={[
+                    {
+                      label: 'Materia prima',
+                      value: product.currentMaterialCost,
+                    },
+                    {
+                      label: 'Mano de obra',
+                      value: product.currentDirectLaborCost,
+                    },
+                    {
+                      label: 'CIF asignado',
+                      value: product.currentAllocatedCifCost,
+                    },
+                  ]}
+                  total={product.currentCost}
+                  currency={currency}
+                  totalLabel="Costo unitario"
+                />
+                {margin ? (
+                  <VrittInventoryFacts
+                    facts={[
+                      {
+                        label: 'Precio de venta',
+                        value: formatInventoryCurrency(
+                          product.currentSalePrice,
+                          currency,
+                        ),
+                        highlight: true,
+                      },
+                      {
+                        label: 'Margen absoluto',
+                        value: formatInventoryCurrency(
+                          margin.absolute,
+                          currency,
+                        ),
+                      },
+                      {
+                        label: 'Margen %',
+                        value: `${margin.percent.toFixed(1)}%`,
+                      },
+                    ]}
+                  />
+                ) : null}
               </View>
-            </VrittCard>
+            </VrittInventoryCard>
 
-            <View className="gap-3.5">
-              <VrittButton label="Editar" onPress={() => setIsEditing(true)} />
-              <VrittButton
-                label={product.status === 'ACTIVE' ? 'Desactivar producto' : 'Activar producto'}
-                variant="secondary"
-                onPress={handleToggleStatus}
+            <VrittInventoryCard eyebrow="Información">
+              <VrittInventoryFacts
+                facts={[
+                  { label: 'Tipo', value: formatProductType(product.type) },
+                  {
+                    label: 'Categoría',
+                    value: product.category || 'Sin categoría',
+                  },
+                  { label: 'Unidad de stock', value: product.stockUnit },
+                  {
+                    label: 'Estado',
+                    value: formatInventoryStatus(product.status),
+                  },
+                ]}
               />
-              <VrittButton
-                label="Volver al inventario"
-                variant="secondary"
-                onPress={() => router.replace(`/businesses/${businessId}/inventory`)}
+            </VrittInventoryCard>
+
+            {canManageInventory ? (
+              <VrittInventoryFooterActions
+                primary={{
+                  label: 'Editar producto',
+                  icon: 'create-outline',
+                  onPress: () => setIsEditing(true),
+                }}
+                secondary={{
+                  label:
+                    product.status === 'ACTIVE'
+                      ? 'Desactivar producto'
+                      : 'Reactivar producto',
+                  onPress: handleToggleStatus,
+                }}
               />
-            </View>
+            ) : null}
           </>
         ) : (
           <>
-            <View className="gap-4">
-              <VrittInput label="Nombre" value={editName} onChangeText={setEditName} editable={!isSubmitting} />
-              <VrittInput label="Categoría" value={editCategory} onChangeText={setEditCategory} editable={!isSubmitting} />
-              <VrittInput label="Stock mínimo" value={editMinStock} onChangeText={setEditMinStock} keyboardType="numeric" editable={!isSubmitting} />
-            </View>
+            <VrittInventoryCard eyebrow="Editar datos">
+              <View style={{ gap: 14 }}>
+                <VrittPaperInput
+                  label="Nombre"
+                  value={editName}
+                  onChangeText={setEditName}
+                  editable={!isSubmitting}
+                  required
+                />
+                <VrittPaperInput
+                  label="Categoría"
+                  value={editCategory}
+                  onChangeText={setEditCategory}
+                  editable={!isSubmitting}
+                />
+                <VrittPaperInput
+                  label="Stock mínimo"
+                  value={editMinStock}
+                  onChangeText={setEditMinStock}
+                  keyboardType="numeric"
+                  editable={!isSubmitting}
+                  suffix={product.stockUnit}
+                />
+              </View>
+            </VrittInventoryCard>
 
-            <View className="gap-3.5">
-              <VrittButton label="Guardar cambios" loading={isSubmitting} onPress={handleSave} />
-              <VrittButton label="Cancelar" variant="secondary" onPress={() => setIsEditing(false)} disabled={isSubmitting} />
-            </View>
+            <VrittInventoryFooterActions
+              primary={{
+                label: 'Guardar cambios',
+                icon: 'save-outline',
+                onPress: handleSave,
+                loading: isSubmitting,
+                disabled: !editName.trim(),
+              }}
+              secondary={{
+                label: 'Cancelar',
+                onPress: () => {
+                  setIsEditing(false);
+                  setEditName(product.name);
+                  setEditCategory(product.category ?? '');
+                  setEditMinStock(String(Number(product.minStock)));
+                },
+                disabled: isSubmitting,
+              }}
+            />
           </>
         )}
-      </View>
-    </VrittScreen>
-  )
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
 }
