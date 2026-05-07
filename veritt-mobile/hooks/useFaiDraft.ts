@@ -28,19 +28,25 @@ interface DraftPayload {
   }>;
 }
 
+export type DailyCountKind = 'fai' | 'fci';
+
 function buildKey(
+  kind: DailyCountKind,
   businessId: string,
   locationId: string,
   date: string,
 ): string {
-  return `veritt.fai.draft.${businessId}.${locationId}.${date}`;
+  return `veritt.${kind}.draft.${businessId}.${locationId}.${date}`;
 }
 
 function todayISO(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-function buildInitialItems(materials: Material[]): FaiMaterialDraft[] {
+function buildInitialItems(
+  materials: Material[],
+  systemQtyOverrides?: Record<string, number>,
+): FaiMaterialDraft[] {
   return materials
     .filter((m) => m.status === 'ACTIVE')
     .map<FaiMaterialDraft>((m) => ({
@@ -48,7 +54,10 @@ function buildInitialItems(materials: Material[]): FaiMaterialDraft[] {
       name: m.name,
       baseUnit: m.baseUnit,
       category: m.category ?? null,
-      systemQty: Number(m.currentStock ?? 0),
+      systemQty:
+        systemQtyOverrides?.[m.id] !== undefined
+          ? Number(systemQtyOverrides[m.id])
+          : Number(m.currentStock ?? 0),
       counted: null,
       skipped: false,
       cause: null,
@@ -105,6 +114,11 @@ export interface UseFaiDraftArgs {
   /** Mientras `false`, el hook no hidrata desde storage. Útil mientras se cargan
    *  los materiales del backend para evitar pisar el draft con un array vacío. */
   ready: boolean;
+  /** Tipo de conteo — define la storage key (fai apertura vs fci cierre). Default: "fai". */
+  kind?: DailyCountKind;
+  /** Override opcional para `systemQty` por materialId. Útil en FCI: la cantidad
+   *  esperada es la apertura registrada, no el `currentStock` del backend. */
+  systemQtyOverrides?: Record<string, number>;
 }
 
 export interface UseFaiDraftReturn {
@@ -125,11 +139,13 @@ export function useFaiDraft({
   date,
   materials,
   ready,
+  kind = 'fai',
+  systemQtyOverrides,
 }: UseFaiDraftArgs): UseFaiDraftReturn {
   const operationalDate = date ?? todayISO();
   const key =
     businessId && locationId
-      ? buildKey(businessId, locationId, operationalDate)
+      ? buildKey(kind, businessId, locationId, operationalDate)
       : null;
 
   const [items, setItems] = useState<FaiMaterialDraft[]>([]);
@@ -147,6 +163,16 @@ export function useFaiDraft({
       .join('|');
   }, [materials]);
 
+  // Huella del override map — evita re-hidratar si cambia la referencia pero
+  // no el contenido (e.g., padre construye un objeto nuevo en cada render).
+  const overridesSignature = useMemo(() => {
+    if (!systemQtyOverrides) return '';
+    return Object.keys(systemQtyOverrides)
+      .sort()
+      .map((k) => `${k}:${systemQtyOverrides[k]}`)
+      .join('|');
+  }, [systemQtyOverrides]);
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyRef = useRef<string | null>(null);
 
@@ -159,7 +185,7 @@ export function useFaiDraft({
     setIsHydrated(false);
     keyRef.current = key;
 
-    const fresh = buildInitialItems(materials);
+    const fresh = buildInitialItems(materials, systemQtyOverrides);
     (async () => {
       let payload: DraftPayload | null = null;
       try {
@@ -186,7 +212,7 @@ export function useFaiDraft({
     // `materials` se lee dentro pero NO depende del effect — solo refresca
     // cuando el set de IDs cambia.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, key, materialsSignature]);
+  }, [ready, key, materialsSignature, overridesSignature]);
 
   // Persistencia con debounce — corre sólo después de hidratar
   // El error se notifica una sola vez por sesión: si SecureStore falla
@@ -303,9 +329,9 @@ export function useFaiDraft({
     }
     setHasDraft(false);
     if (materials.length > 0) {
-      setItems(buildInitialItems(materials));
+      setItems(buildInitialItems(materials, systemQtyOverrides));
     }
-  }, [key, materials]);
+  }, [key, materials, systemQtyOverrides]);
 
   return {
     items,

@@ -23,9 +23,11 @@ import {
 type Props = {
   item: FaiMaterialDraft;
   onPress: (materialId: string) => void;
+  /** Etiqueta para la cantidad de referencia (default "Sistema"). Para FCI suele ser "Apertura". */
+  referenceLabel?: string;
 };
 
-function Component({ item, onPress }: Props) {
+function Component({ item, onPress, referenceLabel = 'Sistema' }: Props) {
   const handlePress = useCallback(
     () => onPress(item.materialId),
     [item.materialId, onPress],
@@ -121,7 +123,7 @@ function Component({ item, onPress }: Props) {
             letterSpacing: 0.2,
           }}
         >
-          Sistema · {formatQty(item.systemQty, item.baseUnit)}
+          {referenceLabel} · {formatQty(item.systemQty, item.baseUnit)}
         </Text>
       </View>
 

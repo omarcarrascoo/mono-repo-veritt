@@ -39,6 +39,20 @@ type Props = {
   onClose: () => void;
   onSubmit: () => void;
   onJumpTo: (materialId: string) => void;
+  /** Texto del estado "todo coincide" (default: "...con el sistema."). */
+  perfectMatchLabel?: string;
+  /** Eyebrow del header del sheet (default: "Apertura · FAI"). */
+  title?: string;
+  /** Texto del CTA primario cuando se puede enviar (default: "Enviar para autorización"). */
+  submitLabel?: string;
+  /**
+   * Cómo se trata la varianza:
+   * - `explain` (FAI): obliga al operador a justificar cada diferencia.
+   * - `informational` (FCI): la varianza con apertura se muestra como
+   *   referencia visual, pero no se exige nota — esas diferencias se
+   *   explican luego en el reporte FID. Default: "explain".
+   */
+  varianceMode?: 'explain' | 'informational';
 };
 
 function Component({
@@ -48,9 +62,19 @@ function Component({
   onClose,
   onSubmit,
   onJumpTo,
+  perfectMatchLabel = 'Todos los materiales coinciden con el sistema.',
+  title = 'Apertura · FAI',
+  submitLabel = 'Enviar para autorización',
+  varianceMode = 'explain',
 }: Props) {
   const progress = useMemo(() => calcProgress(items), [items]);
-  const validation = useMemo(() => validateForSubmit(items), [items]);
+  const validation = useMemo(
+    () =>
+      validateForSubmit(items, {
+        requireVarianceExplanation: varianceMode === 'explain',
+      }),
+    [items, varianceMode],
+  );
 
   const variances = useMemo(
     () =>
@@ -111,7 +135,7 @@ function Component({
                   textTransform: 'uppercase',
                 }}
               >
-                Apertura · FAI
+                {title}
               </Text>
               <Text
                 style={{
@@ -249,7 +273,11 @@ function Component({
           {variances.length > 0 ? (
             <Section
               title={`${variances.length} con varianza`}
-              caption="Estos requieren explicación. Tócalos para editar."
+              caption={
+                varianceMode === 'informational'
+                  ? 'Diferencia con la apertura. Se clasificará en el reporte de desviaciones (FID).'
+                  : 'Estos requieren explicación. Tócalos para editar.'
+              }
               accent={palette.amber}
             >
               {variances.map((item) => (
@@ -257,6 +285,7 @@ function Component({
                   key={item.materialId}
                   item={item}
                   highlightTone="review"
+                  varianceMode={varianceMode}
                   onPress={onJumpTo}
                 />
               ))}
@@ -275,6 +304,7 @@ function Component({
                   key={item.materialId}
                   item={item}
                   highlightTone="blocker"
+                  varianceMode={varianceMode}
                   onPress={onJumpTo}
                 />
               ))}
@@ -319,7 +349,7 @@ function Component({
                     opacity: 0.85,
                   }}
                 >
-                  Todos los materiales coinciden con el sistema.
+                  {perfectMatchLabel}
                 </Text>
               </View>
             </View>
@@ -404,7 +434,7 @@ function Component({
                 letterSpacing: -0.3,
               }}
             >
-              {isSubmitting ? 'Enviando...' : 'Enviar para autorización'}
+              {isSubmitting ? 'Enviando...' : submitLabel}
             </Text>
             <Ionicons
               name="paper-plane-outline"
@@ -521,15 +551,19 @@ function Section({
   );
 }
 
+interface ReviewRowProps {
+  item: FaiMaterialDraft;
+  highlightTone: 'review' | 'blocker';
+  varianceMode: 'explain' | 'informational';
+  onPress: (materialId: string) => void;
+}
+
 function ReviewRowInner({
   item,
   highlightTone,
+  varianceMode,
   onPress,
-}: {
-  item: FaiMaterialDraft;
-  highlightTone: 'review' | 'blocker';
-  onPress: (materialId: string) => void;
-}) {
+}: ReviewRowProps) {
   const handlePress = useCallback(
     () => onPress(item.materialId),
     [item.materialId, onPress],
@@ -542,7 +576,9 @@ function ReviewRowInner({
   const accentDeep =
     highlightTone === 'review' ? palette.amberDeep : palette.dangerDeep;
   const note = buildVarianceNote(item);
-  const showCauseHint = !isSkipped && !note;
+  // En modo informational no pedimos explicación de la varianza con apertura.
+  const showCauseHint =
+    varianceMode === 'explain' && !isSkipped && !note;
 
   return (
     <TouchableOpacity

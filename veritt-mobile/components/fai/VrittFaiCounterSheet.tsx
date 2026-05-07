@@ -49,6 +49,22 @@ type Props = {
   onSetSkipped: (materialId: string, skipped: boolean) => void;
   onSetCause: (materialId: string, cause: FaiVarianceCause | null) => void;
   onSetNote: (materialId: string, note: string) => void;
+  /** Texto descriptivo del valor de referencia. Default: "Sistema". */
+  referenceLabel?: string;
+  /** Atajo del valor de referencia. Default: "Igual al sistema". */
+  matchShortcutLabel?: string;
+  /** Mensaje del bloque de coincidencia. Default: "Coincide con el sistema". */
+  matchHintLabel?: string;
+  /** Sufijo del label de varianza. Default: "vs sistema". */
+  varianceSuffixLabel?: string;
+  /**
+   * `explain` (FAI): muestra el bloque "¿A qué se debe la varianza?" con
+   * causas predefinidas + nota libre.
+   * `informational` (FCI): oculta ese bloque — la diferencia con la apertura
+   * se explicará después en el reporte de desviaciones (FID).
+   * Default: "explain".
+   */
+  varianceMode?: 'explain' | 'informational';
 };
 
 function Component({
@@ -61,6 +77,11 @@ function Component({
   onSetSkipped,
   onSetCause,
   onSetNote,
+  referenceLabel = 'Sistema',
+  matchShortcutLabel = 'Igual al sistema',
+  matchHintLabel = 'Coincide con el sistema',
+  varianceSuffixLabel = 'vs sistema',
+  varianceMode = 'explain',
 }: Props) {
   const item = items[index];
 
@@ -89,6 +110,11 @@ function Component({
           onSetSkipped={onSetSkipped}
           onSetCause={onSetCause}
           onSetNote={onSetNote}
+          referenceLabel={referenceLabel}
+          matchShortcutLabel={matchShortcutLabel}
+          matchHintLabel={matchHintLabel}
+          varianceSuffixLabel={varianceSuffixLabel}
+          varianceMode={varianceMode}
         />
       </KeyboardAvoidingView>
     </Modal>
@@ -105,6 +131,11 @@ function CounterBody({
   onSetSkipped,
   onSetCause,
   onSetNote,
+  referenceLabel,
+  matchShortcutLabel,
+  matchHintLabel,
+  varianceSuffixLabel,
+  varianceMode,
 }: {
   items: FaiMaterialDraft[];
   index: number;
@@ -115,6 +146,11 @@ function CounterBody({
   onSetSkipped: (materialId: string, skipped: boolean) => void;
   onSetCause: (materialId: string, cause: FaiVarianceCause | null) => void;
   onSetNote: (materialId: string, note: string) => void;
+  referenceLabel: string;
+  matchShortcutLabel: string;
+  matchHintLabel: string;
+  varianceSuffixLabel: string;
+  varianceMode: 'explain' | 'informational';
 }) {
   // Local state del input — se "compromete" al borrador con onBlur o navegación
   const [draftText, setDraftText] = useState<string>(
@@ -353,7 +389,7 @@ function CounterBody({
                 letterSpacing: -0.2,
               }}
             >
-              Sistema dice {formatQty(item.systemQty, item.baseUnit)}
+              {referenceLabel}: {formatQty(item.systemQty, item.baseUnit)}
             </Text>
           </View>
 
@@ -398,7 +434,7 @@ function CounterBody({
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <ShortcutPill
             icon="checkmark-circle-outline"
-            label="Igual al sistema"
+            label={matchShortcutLabel}
             isActive={isMatch}
             onPress={handleMatchSystem}
           />
@@ -516,7 +552,7 @@ function CounterBody({
                   fontVariant: ['tabular-nums'],
                 }}
               >
-                {formatVariance(variance, item.baseUnit)} vs sistema
+                {formatVariance(variance, item.baseUnit)} {varianceSuffixLabel}
               </Text>
             </View>
           ) : isMatch ? (
@@ -543,14 +579,15 @@ function CounterBody({
                   letterSpacing: -0.2,
                 }}
               >
-                Coincide con el sistema
+                {matchHintLabel}
               </Text>
             </View>
           ) : null}
         </View>
 
-        {/* Bloque de varianza */}
-        {hasVariance ? (
+        {/* Bloque de varianza — solo en modo "explain" (FAI). En FCI la
+            diferencia con la apertura se explicará en el FID. */}
+        {hasVariance && varianceMode === 'explain' ? (
           <View style={{ gap: 14 }}>
             <View>
               <Text

@@ -214,9 +214,24 @@ export interface FaiSubmitValidation {
   reasons: string[];
 }
 
+export interface ValidateOptions {
+  /**
+   * Si `true`, una varianza sin causa o nota bloquea el envío. Apertura (FAI)
+   * lo necesita: no hay otra forma de explicar la diferencia con el sistema.
+   *
+   * En el cierre (FCI) la diferencia con la apertura se explica naturalmente
+   * por ventas y consumo del día — no hay nada que justificar al momento de
+   * contar. El reporte FID se encarga de clasificar las desviaciones reales
+   * después de cruzar las recetas. Default: `true`.
+   */
+  requireVarianceExplanation?: boolean;
+}
+
 export function validateForSubmit(
   items: FaiMaterialDraft[],
+  options: ValidateOptions = {},
 ): FaiSubmitValidation {
+  const { requireVarianceExplanation = true } = options;
   const progress = calcProgress(items);
   const reasons: string[] = [];
 
@@ -224,16 +239,18 @@ export function validateForSubmit(
     reasons.push('Captura al menos un conteo antes de enviar.');
   }
 
-  const missingCause = items.filter((i) => {
-    if (getMaterialStatus(i) !== 'counted_variance') return false;
-    return !i.cause && !i.note.trim();
-  });
-  if (missingCause.length > 0) {
-    reasons.push(
-      missingCause.length === 1
-        ? `Explica la varianza de ${missingCause[0].name}.`
-        : `Explica la varianza de ${missingCause.length} materiales.`,
-    );
+  if (requireVarianceExplanation) {
+    const missingCause = items.filter((i) => {
+      if (getMaterialStatus(i) !== 'counted_variance') return false;
+      return !i.cause && !i.note.trim();
+    });
+    if (missingCause.length > 0) {
+      reasons.push(
+        missingCause.length === 1
+          ? `Explica la varianza de ${missingCause[0].name}.`
+          : `Explica la varianza de ${missingCause.length} materiales.`,
+      );
+    }
   }
 
   return { canSubmit: reasons.length === 0, reasons };
