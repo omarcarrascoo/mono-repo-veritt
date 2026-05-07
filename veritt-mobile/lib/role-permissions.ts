@@ -49,6 +49,11 @@ export const permissions = {
   canAuthorize: (role: MembershipRole | null | undefined) =>
     has(role, AUTHORIZATION_ROLES),
 
+  // Vista del módulo de asistencia (turnos del equipo, historial, hero stats).
+  // OPERATOR no puede entrar — sólo supervisores/managers.
+  canSeeShifts: (role: MembershipRole | null | undefined) =>
+    has(role, AUTHORIZATION_ROLES),
+
   // OPERATOR-friendly: todos los miembros activos pueden registrar ventas y
   // marcar su propia asistencia.
   canCreateSale: (role: MembershipRole | null | undefined) => !!role,

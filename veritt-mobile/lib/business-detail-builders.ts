@@ -45,6 +45,7 @@ export function buildQuickModules(
   const canPayroll = permissions.canSeePayroll(role);
   const canSupply = permissions.canManageSupply(role);
   const canConfig = permissions.canAccessConfig(role);
+  const canShifts = permissions.canSeeShifts(role);
 
   const list: QuickModuleItem[] = [
     {
@@ -66,13 +67,16 @@ export function buildQuickModules(
       icon: 'archive-outline',
       route: `${base}/receipts`,
     },
-    {
+  ];
+
+  if (canShifts) {
+    list.push({
       key: 'shifts',
       label: 'Asistencia',
       icon: 'time-outline',
       route: `${base}/shifts`,
-    },
-  ];
+    });
+  }
 
   if (canStaff) {
     list.push({

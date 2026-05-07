@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "veritt-mobile",
-    "slug": "veritt-mobile",
+    "slug": "verrit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -44,6 +44,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7935f71a-5847-4d8f-bad3-624beb96053b"
+      }
+    },
+    "owner": "ocarrasco02"
   }
 }
