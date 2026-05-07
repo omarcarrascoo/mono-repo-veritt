@@ -1,215 +1,464 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { Alert, Text, View } from 'react-native'
-import { router, useLocalSearchParams } from 'expo-router'
-import { receiptsApi } from '@/api/modules/receipts.api'
-import { Receipt } from '@/types/receipt.types'
-import { getApiErrorMessage } from '@/utils/error.utils'
-import { VrittScreen } from '@/components/ui/VrittScreen'
-import { VrittHeader } from '@/components/ui/VrittHeader'
-import { VrittCard } from '@/components/ui/VrittCard'
-import { VrittButton } from '@/components/ui/VrittButton'
-import { VrittLoader } from '@/components/ui/VrittLoader'
-import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel'
-import { VrittInput } from '@/components/ui/VrittInput'
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  Text,
+  View,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 
-const STATUS_LABELS: Record<string, string> = {
-  COMPLETED: 'Completada',
-  PARTIAL: 'Parcial',
-  CANCELLED: 'Cancelada',
+import { businessesApi } from '@/api/modules/businesses.api';
+import { receiptsApi } from '@/api/modules/receipts.api';
+import { useBusinessStore } from '@/store/business.store';
+import { permissions } from '@/lib/role-permissions';
+import { notify } from '@/lib/notify';
+import { getApiErrorMessage } from '@/utils/error.utils';
+import { formatInventoryCurrency } from '@/lib/inventory-formatters';
+import {
+  RECEIPT_STATUS_LABEL,
+  calcReceiptTotal,
+  shortTime,
+} from '@/lib/receipts-formatters';
+import type { Business } from '@/types/business.types';
+import type { Receipt } from '@/types/receipt.types';
+import {
+  hairline,
+  palette,
+  radius,
+  surface,
+  text,
+} from '@/constants/design-tokens';
+
+import { VrittLoader } from '@/components/ui/VrittLoader';
+import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
+import { VrittInventoryCard } from '@/components/inventory/VrittInventoryCard';
+import { VrittInventoryFacts } from '@/components/inventory/VrittInventoryFacts';
+import { VrittInventoryHero } from '@/components/inventory/VrittInventoryHero';
+import { VrittInventoryFooterActions } from '@/components/inventory/VrittInventoryFooterActions';
+import { VrittReceiptStatusChip } from '@/components/receipts/VrittReceiptStatusChip';
+import { VrittReceiptItemReadRow } from '@/components/receipts/VrittReceiptItemReadRow';
+import { VrittCancelReceiptSheet } from '@/components/receipts/VrittCancelReceiptSheet';
+
+function formatLongDate(dateStr?: string | null): string {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 export default function ReceiptDetailScreen() {
-  const { businessId, receiptId } = useLocalSearchParams<{ businessId: string; receiptId: string }>()
-  const [receipt, setReceipt] = useState<Receipt | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [showCancelForm, setShowCancelForm] = useState(false)
-  const [cancelReason, setCancelReason] = useState('')
-  const [cancelComment, setCancelComment] = useState('')
-  const [isCancelling, setIsCancelling] = useState(false)
+  const { businessId, receiptId } = useLocalSearchParams<{
+    businessId: string;
+    receiptId: string;
+  }>();
 
-  const loadReceipt = useCallback(async () => {
-    if (!businessId || !receiptId) return
+  const role = useBusinessStore((s) =>
+    businessId ? s.getRole(businessId) : null,
+  );
+  const canManage = permissions.canManageSupply(role);
+
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelComment, setCancelComment] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const loadAll = useCallback(async () => {
+    if (!businessId || !receiptId) return;
     try {
-      setIsLoading(true)
-      const data = await receiptsApi.get(businessId, receiptId)
-      setReceipt(data)
-    } catch (error) {
-      Alert.alert('Error', getApiErrorMessage(error, 'No pudimos cargar la recepción.'))
+      setIsLoading(true);
+      const [businessData, receiptData] = await Promise.all([
+        businessesApi.getById(businessId),
+        receiptsApi.get(businessId, receiptId),
+      ]);
+      setBusiness(businessData);
+      setReceipt(receiptData);
+    } catch (err) {
+      notify.error(
+        'No pudimos cargar la recepción',
+        getApiErrorMessage(err, 'Verifica tu conexión.'),
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [businessId, receiptId])
+  }, [businessId, receiptId]);
 
-  useEffect(() => { loadReceipt() }, [loadReceipt])
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
-  const handleCancel = async () => {
-    if (!businessId || !receiptId) return
+  const onBack = useCallback(() => router.back(), []);
+
+  const handleConfirmCancel = useCallback(async () => {
+    if (!businessId || !receiptId) return;
     if (!cancelReason.trim()) {
-      Alert.alert('Faltan datos', 'El motivo de cancelación es obligatorio.')
-      return
+      notify.warning(
+        'Falta el motivo',
+        'El motivo de cancelación es obligatorio.',
+      );
+      return;
     }
-
     try {
-      setIsCancelling(true)
+      setIsCancelling(true);
       const updated = await receiptsApi.cancel(businessId, receiptId, {
         reason: cancelReason.trim(),
         comment: cancelComment.trim() || undefined,
-      })
-      setReceipt(updated)
-      setShowCancelForm(false)
-    } catch (error) {
-      Alert.alert('Error', getApiErrorMessage(error, 'No pudimos cancelar la recepción.'))
+      });
+      setReceipt(updated);
+      setShowCancelForm(false);
+      setCancelReason('');
+      setCancelComment('');
+      notify.success(
+        'Recepción cancelada',
+        'El stock fue revertido en inventario.',
+      );
+    } catch (err) {
+      notify.error(
+        'No pudimos cancelar la recepción',
+        getApiErrorMessage(err, 'Intenta de nuevo en unos segundos.'),
+      );
     } finally {
-      setIsCancelling(false)
+      setIsCancelling(false);
     }
-  }
+  }, [businessId, receiptId, cancelReason, cancelComment]);
 
-  if (isLoading) return <VrittLoader />
-  if (!receipt) return null
+  const totalCost = useMemo(
+    () => (receipt ? calcReceiptTotal(receipt.items ?? []) : 0),
+    [receipt],
+  );
 
-  const totalCost = (receipt.items ?? []).reduce(
-    (sum, item) => sum + Number(item.quantityReceived) * Number(item.actualUnitCost),
-    0
-  )
+  if (isLoading) return <VrittLoader />;
 
-  return (
-    <VrittScreen scrollable>
-      <View className="gap-8">
-        <VrittHeader
-          title={receipt.purchaseOrder ? `OC-${receipt.purchaseOrder.orderNumber}` : 'Recepción directa'}
-          subtitle={STATUS_LABELS[receipt.status] ?? receipt.status}
-        />
-
-        <VrittCard>
-          <View className="gap-3">
-            {receipt.purchaseOrder?.supplier && (
-              <View>
-                <Text className="text-[13px] text-veritt-muted">Proveedor</Text>
-                <Text className="text-veritt-text text-[15px]">{receipt.purchaseOrder.supplier.name}</Text>
-              </View>
-            )}
-            <View>
-              <Text className="text-[13px] text-veritt-muted">Ubicación</Text>
-              <Text className="text-veritt-text text-[15px]">{receipt.location?.name ?? '—'}</Text>
-            </View>
-            <View>
-              <Text className="text-[13px] text-veritt-muted">Costo total</Text>
-              <Text className="text-veritt-text text-[15px]">${totalCost.toFixed(2)}</Text>
-            </View>
-            <View>
-              <Text className="text-[13px] text-veritt-muted">Fecha</Text>
-              <Text className="text-veritt-text text-[15px]">
-                {receipt.receivedAt ? new Date(receipt.receivedAt).toLocaleDateString('es-MX') : '—'}
-              </Text>
-            </View>
-            {receipt.notes && (
-              <View>
-                <Text className="text-[13px] text-veritt-muted">Notas</Text>
-                <Text className="text-veritt-text text-[15px]">{receipt.notes}</Text>
-              </View>
-            )}
-          </View>
-        </VrittCard>
-
-        {receipt.status === 'CANCELLED' && (
-          <VrittCard>
-            <View className="gap-3">
-              <Text className="text-[15px] font-bold text-red-400">Recepción cancelada</Text>
-              {receipt.cancellationReason && (
-                <View>
-                  <Text className="text-[13px] text-veritt-muted">Motivo</Text>
-                  <Text className="text-veritt-text text-[15px]">{receipt.cancellationReason}</Text>
-                </View>
-              )}
-              {receipt.cancellationComment && (
-                <View>
-                  <Text className="text-[13px] text-veritt-muted">Comentario</Text>
-                  <Text className="text-veritt-text text-[15px]">{receipt.cancellationComment}</Text>
-                </View>
-              )}
-              {receipt.cancelledAt && (
-                <View>
-                  <Text className="text-[13px] text-veritt-muted">Fecha de cancelación</Text>
-                  <Text className="text-veritt-text text-[15px]">{new Date(receipt.cancelledAt).toLocaleDateString('es-MX')}</Text>
-                </View>
-              )}
-            </View>
-          </VrittCard>
-        )}
-
-        {(receipt.items?.length ?? 0) > 0 && (
-          <View className="gap-4">
-            <VrittSectionLabel>Artículos recibidos ({receipt.items!.length})</VrittSectionLabel>
-            {receipt.items!.map((item) => (
-              <VrittCard key={item.id}>
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-1">
-                    <Text className="text-veritt-text font-bold">{item.material?.name ?? item.materialId}</Text>
-                    <Text className="text-[13px] text-veritt-muted mt-1">
-                      {Number(item.quantityReceived)} {item.material?.unit ?? ''} × ${Number(item.actualUnitCost).toFixed(2)}
-                    </Text>
-                  </View>
-                  <Text className="text-veritt-text font-bold">
-                    ${(Number(item.quantityReceived) * Number(item.actualUnitCost)).toFixed(2)}
-                  </Text>
-                </View>
-              </VrittCard>
-            ))}
-          </View>
-        )}
-
-        {receipt.status === 'COMPLETED' && !showCancelForm && (
-          <VrittButton
-            label="Cancelar recepción"
-            variant="secondary"
-            onPress={() => setShowCancelForm(true)}
-          />
-        )}
-
-        {showCancelForm && (
-          <VrittCard>
-            <View className="gap-4">
-              <Text className="text-[15px] font-bold text-veritt-text">Cancelar recepción</Text>
-              <Text className="text-[13px] text-veritt-muted">
-                Se revertirá todo el inventario agregado por esta recepción.
-              </Text>
-              <VrittInput
-                label="Motivo de cancelación"
-                placeholder="¿Por qué se cancela esta recepción?"
-                value={cancelReason}
-                onChangeText={setCancelReason}
-                editable={!isCancelling}
-              />
-              <VrittInput
-                label="Comentario adicional (opcional)"
-                placeholder="Detalles adicionales..."
-                value={cancelComment}
-                onChangeText={setCancelComment}
-                editable={!isCancelling}
-              />
-              <View className="gap-3.5">
-                <VrittButton
-                  label="Confirmar cancelación"
-                  onPress={handleCancel}
-                  loading={isCancelling}
-                />
-                <VrittButton
-                  label="Volver"
-                  variant="secondary"
-                  onPress={() => setShowCancelForm(false)}
-                  disabled={isCancelling}
-                />
-              </View>
-            </View>
-          </VrittCard>
-        )}
-
-        <VrittButton
-          label="Volver a recepciones"
-          variant="secondary"
-          onPress={() => router.replace(`/businesses/${businessId}/receipts`)}
+  if (!receipt) {
+    return (
+      <View style={{ flex: 1, backgroundColor: surface.paper }}>
+        <StatusBar barStyle="dark-content" backgroundColor={surface.paper} />
+        <VrittInventoryHeader
+          eyebrow="Recepciones"
+          title="No encontrada"
+          onBack={onBack}
         />
       </View>
-    </VrittScreen>
-  )
+    );
+  }
+
+  const currency = business?.defaultCurrency || 'MXN';
+  const supplierName =
+    receipt.purchaseOrder?.supplier?.name ?? 'Recepción directa';
+  const orderLabel = receipt.purchaseOrder
+    ? `OC-${receipt.purchaseOrder.orderNumber}`
+    : 'Recepción directa';
+  const heroTone =
+    receipt.status === 'CANCELLED'
+      ? 'danger'
+      : receipt.status === 'PARTIAL'
+      ? 'warning'
+      : 'neutral';
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: surface.paper }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={surface.paper} />
+
+      <VrittInventoryHeader
+        eyebrow={supplierName}
+        title={orderLabel}
+        onBack={onBack}
+      />
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 32,
+          paddingBottom: 240,
+          gap: 36,
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <VrittInventoryHero
+          eyebrow={`Estado · ${RECEIPT_STATUS_LABEL[receipt.status]}`}
+          primaryValue={formatInventoryCurrency(totalCost, currency)}
+          primaryLabel={`${
+            receipt.items?.length ?? 0
+          } ${
+            (receipt.items?.length ?? 0) === 1 ? 'artículo' : 'artículos'
+          } recibidos`}
+          tone={heroTone}
+          metrics={[
+            {
+              label: 'Fecha',
+              value: receipt.receivedAt
+                ? new Date(receipt.receivedAt).toLocaleDateString('es-MX', {
+                    day: '2-digit',
+                    month: 'short',
+                  })
+                : '—',
+            },
+            {
+              label: 'Hora',
+              value: receipt.receivedAt
+                ? shortTime(receipt.receivedAt)
+                : '—',
+            },
+            {
+              label: 'Ubicación',
+              value: receipt.location?.name ?? '—',
+            },
+          ]}
+        />
+
+        <VrittInventoryCard eyebrow="Información">
+          <View style={{ gap: 14 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Text
+                style={{
+                  color: text.onPaper.muted,
+                  fontSize: 12,
+                  fontWeight: '700',
+                }}
+              >
+                Estado
+              </Text>
+              <VrittReceiptStatusChip status={receipt.status} />
+            </View>
+            <VrittInventoryFacts
+              facts={[
+                { label: 'Proveedor', value: supplierName },
+                {
+                  label: 'Orden de compra',
+                  value: receipt.purchaseOrder
+                    ? `OC-${receipt.purchaseOrder.orderNumber}`
+                    : 'Sin OC',
+                },
+                {
+                  label: 'Ubicación',
+                  value: receipt.location?.name ?? '—',
+                },
+                {
+                  label: 'Fecha',
+                  value: formatLongDate(receipt.receivedAt),
+                },
+                {
+                  label: 'Recibido por',
+                  value: receipt.receivedBy?.fullName ?? '—',
+                },
+              ]}
+            />
+          </View>
+        </VrittInventoryCard>
+
+        {receipt.notes ? (
+          <VrittInventoryCard eyebrow="Notas">
+            <Text
+              style={{
+                color: text.onPaper.primary,
+                fontSize: 13,
+                fontWeight: '600',
+                lineHeight: 19,
+              }}
+            >
+              {receipt.notes}
+            </Text>
+          </VrittInventoryCard>
+        ) : null}
+
+        {(receipt.items?.length ?? 0) > 0 ? (
+          <View style={{ gap: 18 }}>
+            <View style={{ paddingHorizontal: 4 }}>
+              <Text
+                style={{
+                  color: text.onPaper.muted,
+                  fontSize: 10,
+                  fontWeight: '800',
+                  letterSpacing: 1.8,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Artículos recibidos
+              </Text>
+              <Text
+                style={{
+                  color: text.onPaper.primary,
+                  fontSize: 22,
+                  fontWeight: '800',
+                  letterSpacing: -0.8,
+                  marginTop: 4,
+                }}
+              >
+                {receipt.items!.length === 1
+                  ? '1 artículo'
+                  : `${receipt.items!.length} artículos`}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                backgroundColor: surface.card,
+                borderRadius: radius.lg,
+                borderWidth: 1,
+                borderColor: hairline.onPaper,
+                overflow: 'hidden',
+              }}
+            >
+              {receipt.items!.map((item, idx) => (
+                <VrittReceiptItemReadRow
+                  key={item.id}
+                  item={item}
+                  currency={currency}
+                  isFirst={idx === 0}
+                />
+              ))}
+              <View
+                style={{
+                  paddingHorizontal: 22,
+                  paddingVertical: 18,
+                  borderTopWidth: 1,
+                  borderTopColor: hairline.onPaper,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: 'rgba(11,14,18,0.04)',
+                }}
+              >
+                <Text
+                  style={{
+                    color: text.onPaper.muted,
+                    fontSize: 10,
+                    fontWeight: '900',
+                    letterSpacing: 1.6,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Total
+                </Text>
+                <Text
+                  style={{
+                    color: text.onPaper.primary,
+                    fontSize: 18,
+                    fontWeight: '900',
+                    letterSpacing: -0.5,
+                    fontVariant: ['tabular-nums'],
+                  }}
+                >
+                  {formatInventoryCurrency(totalCost, currency)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {receipt.status === 'CANCELLED' ? (
+          <View
+            style={{
+              backgroundColor: surface.card,
+              borderRadius: radius.lg,
+              borderWidth: 1,
+              borderColor: 'rgba(194,84,80,0.2)',
+              padding: 26,
+              gap: 18,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: palette.danger,
+                }}
+              />
+              <Text
+                style={{
+                  color: palette.dangerDeep,
+                  fontSize: 11,
+                  fontWeight: '900',
+                  letterSpacing: 1.6,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Recepción cancelada
+              </Text>
+            </View>
+            <VrittInventoryFacts
+              facts={[
+                {
+                  label: 'Motivo',
+                  value: receipt.cancellationReason ?? '—',
+                },
+                ...(receipt.cancellationComment
+                  ? [
+                      {
+                        label: 'Comentario',
+                        value: receipt.cancellationComment,
+                      },
+                    ]
+                  : []),
+                {
+                  label: 'Cancelada por',
+                  value: receipt.cancelledBy?.fullName ?? '—',
+                },
+                {
+                  label: 'Fecha',
+                  value: formatLongDate(receipt.cancelledAt),
+                },
+              ]}
+            />
+          </View>
+        ) : null}
+
+        {showCancelForm ? (
+          <VrittCancelReceiptSheet
+            reason={cancelReason}
+            comment={cancelComment}
+            onReasonChange={setCancelReason}
+            onCommentChange={setCancelComment}
+            onConfirm={handleConfirmCancel}
+            onClose={() => {
+              setShowCancelForm(false);
+              setCancelReason('');
+              setCancelComment('');
+            }}
+            isSubmitting={isCancelling}
+          />
+        ) : receipt.status === 'COMPLETED' && canManage ? (
+          <VrittInventoryFooterActions
+            primary={{
+              label: 'Volver',
+              icon: 'arrow-back',
+              onPress: onBack,
+            }}
+            destructive={{
+              label: 'Cancelar recepción',
+              onPress: () => setShowCancelForm(true),
+            }}
+          />
+        ) : (
+          <VrittInventoryFooterActions
+            primary={{
+              label: 'Volver al historial',
+              icon: 'arrow-back',
+              onPress: onBack,
+            }}
+          />
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
 }
