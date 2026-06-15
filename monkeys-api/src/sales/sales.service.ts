@@ -124,6 +124,10 @@ export class SalesService {
       const costSnapshot = toNumber(product.currentCost);
       const latestRecipe = product.recipeVersions[0] ?? null;
 
+      // Snapshot del costo unitario del material para TheoreticalConsumption.
+      // La venta NO consume material fisicamente (eso pasa en produccion o
+      // se mide por FCI al final del dia). Por eso el snapshot es el promedio
+      // agregado (Pregunta C en INVENTORY_COSTING.md), no FIFO real.
       const recipeItems = latestRecipe
         ? latestRecipe.items.map((ri) => ({
             materialId: ri.materialId,

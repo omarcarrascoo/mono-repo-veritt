@@ -20,6 +20,7 @@ import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { SupplierInvoicesModule } from './supplier-invoices/supplier-invoices.module';
 import { DailyChainModule } from './daily-chain/daily-chain.module';
+import { AmdModule } from './amd/amd.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { DailyChainModule } from './daily-chain/daily-chain.module';
     ReceiptsModule,
     SupplierInvoicesModule,
     DailyChainModule,
+    AmdModule,
   ],
 })
 export class AppModule {}

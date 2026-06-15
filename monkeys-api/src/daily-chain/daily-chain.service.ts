@@ -5,7 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { Inject, forwardRef } from '@nestjs/common';
 import { DailyChainRepository } from './daily-chain.repository';
+import { LotCostingService } from '../inventory/lot-costing.service';
+import { AmdService } from '../amd/amd.service';
 import { CreateOpeningDto } from './dto/create-opening.dto';
 import { CreateClosingDto } from './dto/create-closing.dto';
 import { ClassifyDeviationDto } from './dto/classify-deviation.dto';
@@ -24,7 +27,12 @@ const toNum = (v: Prisma.Decimal | number | string | null | undefined) =>
 
 @Injectable()
 export class DailyChainService {
-  constructor(private readonly repo: DailyChainRepository) {}
+  constructor(
+    private readonly repo: DailyChainRepository,
+    private readonly lotCosting: LotCostingService,
+    @Inject(forwardRef(() => AmdService))
+    private readonly amdService: AmdService,
+  ) {}
 
   // ── Auth helpers ──
 
@@ -131,6 +139,18 @@ export class DailyChainService {
     const materials = await this.repo.getActiveMaterials(businessId);
     const materialMap = new Map(materials.map((m) => [m.id, m]));
 
+    // Pregunta B (INVENTORY_COSTING.md 4): la varianza del FAI se valua al
+    // FIFO floor de la ubicacion — el costo del lote que "habria salido" si
+    // el sistema hubiera reportado la cantidad real.
+    const fifoFloorMap = new Map<string, number>();
+    for (const item of dto.items) {
+      const floor = await this.lotCosting.getFifoFloor(
+        item.materialId,
+        dto.locationId,
+      );
+      fifoFloorMap.set(item.materialId, floor);
+    }
+
     // Build items with calculated fields
     const items = dto.items.map((item) => {
       const mat = materialMap.get(item.materialId);
@@ -139,7 +159,8 @@ export class DailyChainService {
       const systemQuantity = round4(toNum(mat.currentStock));
       const previousClosingQuantity = round4(prevClosingMap.get(item.materialId) ?? 0);
       const variance = round4(item.countedQuantity - systemQuantity);
-      const varianceValueMXN = round4(variance * toNum(mat.currentReferenceUnitCost));
+      const unitCostForValuation = fifoFloorMap.get(item.materialId) ?? 0;
+      const varianceValueMXN = round4(variance * unitCostForValuation);
 
       return {
         materialId: item.materialId,
@@ -297,9 +318,20 @@ export class DailyChainService {
       theoreticalMap.set(t.materialId, toNum(t._sum.expectedQuantity));
     }
 
-    // Get material costs for deviation values
+    // Pregunta D (INVENTORY_COSTING.md 4): valuamos la desviacion al costo
+    // real promedio de las allocations del dia. Si no hubo movimientos
+    // (caso raro: la merma se midio solo por FCI sin produccion), fallback
+    // al promedio agregado del material.
+    const realCostMap = new Map<string, number>();
+    const fallbackCostMap = new Map<string, number>();
     const materials = await this.repo.getActiveMaterials(businessId);
-    const costMap = new Map(materials.map((m) => [m.id, toNum(m.currentReferenceUnitCost)]));
+    for (const m of materials) {
+      fallbackCostMap.set(m.id, toNum(m.currentReferenceUnitCost));
+      const realCost = await this.lotCosting.getRealConsumptionCost(m.id, range);
+      if (realCost.weightedUnitCost > 0) {
+        realCostMap.set(m.id, realCost.weightedUnitCost);
+      }
+    }
 
     return this.repo.prismaClient.$transaction(async (tx: Tx) => {
       const authorized = await this.repo.authorizeClosing(tx, closingId, userId);
@@ -309,7 +341,10 @@ export class DailyChainService {
         const theoretical = theoreticalMap.get(item.materialId) ?? 0;
         const realConsumption = toNum(item.realConsumption);
         const deviationQuantity = round4(realConsumption - theoretical);
-        const unitCost = costMap.get(item.materialId) ?? 0;
+        const unitCost =
+          realCostMap.get(item.materialId) ??
+          fallbackCostMap.get(item.materialId) ??
+          0;
         const deviationValueMXN = round4(deviationQuantity * unitCost);
 
         return {
@@ -685,11 +720,28 @@ export class DailyChainService {
       }
     }
 
-    return this.repo.prismaClient.$transaction(async (tx: Tx) => {
-      return this.repo.signFOP(tx, fopId, userId, {
-        discrepancyJustification: justification,
-      });
-    });
+    // Firma + generacion del AMD en la misma transaccion. Si el builder
+    // falla → rollback completo, la firma se revierte ("si no hay AMD no
+    // hay dia firmado", decision 2 INVENTORY_COSTING.md).
+    //
+    // Timeout de 30s: el builder hace agregaciones de todo el dia
+    // (sales, theoretical, allocations, shifts, processes, etc). El
+    // default de Prisma es 5s — insuficiente en pooler de Supabase con
+    // un dia con volumen real.
+    return this.repo.prismaClient.$transaction(
+      async (tx: Tx) => {
+        const signed = await this.repo.signFOP(tx, fopId, userId, {
+          discrepancyJustification: justification,
+        });
+        await this.amdService.generateForFOP(tx, {
+          id: signed.id,
+          businessId: signed.businessId,
+          operationalDate: signed.operationalDate,
+        });
+        return signed;
+      },
+      { timeout: 30_000, maxWait: 10_000 },
+    );
   }
 
   // ── History ──

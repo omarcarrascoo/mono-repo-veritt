@@ -19,6 +19,7 @@ Each app has its own `package.json`, `package-lock.json`, and `node_modules/`. N
 - **No invented dependencies** — install explicitly before importing.
 - **Explicit return types** on service, repository, and API-layer functions.
 - **Manual contract sync** — when backend DTOs change, update `veritt-mobile/types/*.types.ts` + `api/modules/*.api.ts` in the same PR.
+- **Postman sync** — when you add/change/remove a backend endpoint, update `postman/generate-collection.mjs` and regenerate in the same PR (see backend CLAUDE.md). The collection is kept 1:1 with route decorators.
 - **No cross-imports** — never import frontend from backend or vice versa.
 
 ## Quick Commands
@@ -57,18 +58,27 @@ cd veritt-mobile && npm run lint
 
 ## API Routes
 
-Base prefix: `/api/v1`
+Base prefix: `/api/v1`. **Full, always-current route list = the Postman collection** (`postman/generate-collection.mjs`, 1:1 with controllers). Domains below; mind the segment quirks.
 
-| Domain | Routes |
-|--------|--------|
-| Auth | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
-| Businesses | `GET/POST /businesses`, `GET/PATCH /businesses/:id` |
-| Members | `GET/POST /businesses/:id/members` |
-| Onboarding | `GET/PATCH /businesses/:id/onboarding` |
-| Staff | `GET/POST /businesses/:id/staff` |
-| Inventory | `GET/POST /businesses/:id/inventory/*` (materials, products, locations) |
-| Payroll | `GET/PATCH /businesses/:id/payroll/*` |
-| Notifications | `GET /notifications` |
+| Domain | Base path | Notes |
+|--------|-----------|-------|
+| Auth | `/auth` | `register`, `login`, `me` |
+| Users | `/users` | |
+| Businesses | `/businesses` | |
+| Members | `/businesses/:id/members` | |
+| Onboarding | `/businesses/:id/onboarding` | |
+| Areas | `/businesses/:id/areas` | |
+| Staff | `/businesses/:id/staff` | |
+| Payroll | `/businesses/:id/payroll/*` | |
+| Time tracking | `/businesses/:id/shifts` | segment is `/shifts`, **not** `/time-tracking` |
+| Inventory | `/businesses/:id/inventory/*` | materials, products, locations, lots, movements |
+| Payment methods | `/businesses/:id/payment-methods` | |
+| Suppliers / POs / Receipts / Supplier invoices | `/businesses/:id/...` | uses `ParseUUIDPipe` — bad UUID = `400` |
+| Sales | `/businesses/:id/sales` | POS |
+| Processes | `/businesses/:id/processes` | production |
+| Daily chain | `/businesses/:id/daily-chain` | FAI→FCI→FID→FAF→FOP |
+| AMD | `/businesses/:id/amd` | signed daily snapshot + hash verify |
+| Notifications | `/notifications` | **global**, `businessId` is an optional query param |
 
 ## Architecture Patterns
 
@@ -98,6 +108,7 @@ Base prefix: `/api/v1`
 5. Wire into `src/app.module.ts` imports
 6. Add `@UseGuards(JwtAuthGuard)` on controller
 7. Implement membership check in service for business-scoped resources
+8. Register the new routes in `postman/generate-collection.mjs` and regenerate
 
 ### Adding a New Mobile Screen
 
@@ -114,6 +125,7 @@ Base prefix: `/api/v1`
 2. Update `veritt-mobile/types/*.types.ts` to match
 3. Update `veritt-mobile/api/modules/*.api.ts` if endpoint signature changed
 4. Update consuming screens — same PR
+5. Update the request body/example in `postman/generate-collection.mjs` and regenerate
 
 ## Code Style
 

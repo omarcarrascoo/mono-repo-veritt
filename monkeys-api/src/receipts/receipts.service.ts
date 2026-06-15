@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { ReceiptsRepository } from './receipts.repository';
 import { NotificationsService } from '../notifications/notifications.service';
 import { DailyChainService } from '../daily-chain/daily-chain.service';
+import { LotCostingService } from '../inventory/lot-costing.service';
 import { CreateReceiptDto } from './dto/create-receipt.dto';
 import { CancelReceiptDto } from './dto/cancel-receipt.dto';
 
@@ -25,6 +26,7 @@ export class ReceiptsService {
     private readonly receiptsRepository: ReceiptsRepository,
     private readonly notificationsService: NotificationsService,
     private readonly dailyChainService: DailyChainService,
+    private readonly lotCosting: LotCostingService,
   ) {}
 
   private readonly MANAGER_ROLES = ['OWNER', 'ADMIN', 'VERITT_STAFF'];
@@ -180,22 +182,9 @@ export class ReceiptsService {
           },
         });
 
-        // Refresh material reference cost (weighted average of open lots)
-        const openLots = await tx.materialLot.findMany({
-          where: { materialId: item.materialId, remainingQuantity: { gt: 0 } },
-        });
-        if (openLots.length > 0) {
-          const totalQty = openLots.reduce((s, l) => s + toNumber(l.remainingQuantity), 0);
-          const totalVal = openLots.reduce(
-            (s, l) => s + toNumber(l.remainingQuantity) * toNumber(l.unitCost),
-            0,
-          );
-          const newRefCost = totalQty > 0 ? round4(totalVal / totalQty) : 0;
-          await tx.material.update({
-            where: { id: item.materialId },
-            data: { currentReferenceUnitCost: newRefCost },
-          });
-        }
+        // Recalcula promedio ponderado del material
+        // (INVENTORY_COSTING.md 6.6 — fuente unica).
+        await this.lotCosting.refreshReferenceCost(item.materialId, tx);
       }
 
       // Update PO status if linked
@@ -389,21 +378,9 @@ export class ReceiptsService {
           data: { lotId: lot.id },
         });
 
-        const openLots = await tx.materialLot.findMany({
-          where: { materialId: item.materialId, remainingQuantity: { gt: 0 } },
-        });
-        if (openLots.length > 0) {
-          const totalQty = openLots.reduce((s, l) => s + toNumber(l.remainingQuantity), 0);
-          const totalVal = openLots.reduce(
-            (s, l) => s + toNumber(l.remainingQuantity) * toNumber(l.unitCost),
-            0,
-          );
-          const newRefCost = totalQty > 0 ? round4(totalVal / totalQty) : 0;
-          await tx.material.update({
-            where: { id: item.materialId },
-            data: { currentReferenceUnitCost: newRefCost },
-          });
-        }
+        // Recalcula promedio ponderado del material
+        // (INVENTORY_COSTING.md 6.6 — fuente unica).
+        await this.lotCosting.refreshReferenceCost(item.materialId, tx);
       }
 
       await tx.receipt.update({
@@ -559,22 +536,9 @@ export class ReceiptsService {
           });
         }
 
-        // Recalculate weighted average reference cost
-        const openLots = await tx.materialLot.findMany({
-          where: { materialId: item.materialId, remainingQuantity: { gt: 0 } },
-        });
-        if (openLots.length > 0) {
-          const totalQty = openLots.reduce((s, l) => s + toNumber(l.remainingQuantity), 0);
-          const totalVal = openLots.reduce(
-            (s, l) => s + toNumber(l.remainingQuantity) * toNumber(l.unitCost),
-            0,
-          );
-          const newRefCost = totalQty > 0 ? round4(totalVal / totalQty) : 0;
-          await tx.material.update({
-            where: { id: item.materialId },
-            data: { currentReferenceUnitCost: newRefCost },
-          });
-        }
+        // Recalcula promedio ponderado del material
+        // (INVENTORY_COSTING.md 6.6 — fuente unica).
+        await this.lotCosting.refreshReferenceCost(item.materialId, tx);
       }
 
       // Update receipt status

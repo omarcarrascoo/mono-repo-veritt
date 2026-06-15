@@ -5,11 +5,13 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { InventoryService } from './inventory.service';
+import { LotCostingService } from './lot-costing.service';
 import {
   CreateInventoryLocationDto,
   UpdateInventoryLocationDto,
@@ -36,7 +38,45 @@ import {
 @Controller('businesses/:businessId/inventory')
 @UseGuards(JwtAuthGuard)
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly lotCosting: LotCostingService,
+  ) {}
+
+  // ── Lot costing (INVENTORY_COSTING.md seccion 8) ───────────────────
+
+  /** Snapshot del valor de inventario por todos los materiales del business. */
+  @Get('value-summary')
+  async getValueSummary(@Param('businessId') businessId: string) {
+    return this.lotCosting.getBusinessInventoryValue(businessId);
+  }
+
+  /** Detalle del valor inventariado por material (lote por lote). */
+  @Get('materials/:materialId/value')
+  async getMaterialValue(@Param('materialId') materialId: string) {
+    return this.lotCosting.getMaterialInventoryValue(materialId);
+  }
+
+  /** Cotizacion previa: simula consumir qty del material en una ubicacion. */
+  @Get('materials/:materialId/cost-quote')
+  async getCostQuote(
+    @Param('materialId') materialId: string,
+    @Query('qty') qty: string,
+    @Query('locationId') locationId: string,
+  ) {
+    const parsed = Number(qty);
+    return this.lotCosting.quoteConsumption(
+      materialId,
+      Number.isFinite(parsed) ? parsed : 0,
+      locationId,
+    );
+  }
+
+  /** Health-check: detecta drift entre cache y verdad operativa. */
+  @Get('drift')
+  async getDrift(@Param('businessId') businessId: string) {
+    return this.lotCosting.detectDrift(businessId);
+  }
 
   @Get('categories')
   listCategories(

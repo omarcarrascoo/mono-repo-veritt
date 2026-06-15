@@ -15,6 +15,7 @@ import {
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../database/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { LotCostingService } from './lot-costing.service';
 import {
   CreateInventoryLocationDto,
   UpdateInventoryLocationDto,
@@ -82,6 +83,7 @@ export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly lotCosting: LotCostingService,
   ) {}
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
@@ -296,45 +298,13 @@ export class InventoryService {
     return round4(toNumber(aggregate._sum.quantityDelta));
   }
 
+  /**
+   * Delega a LotCostingService.refreshReferenceCost — punto unico de
+   * mantenimiento del cache `Material.currentReferenceUnitCost`
+   * (INVENTORY_COSTING.md secciones 2 y 6.1).
+   */
   private async refreshMaterialReferenceCost(tx: Tx, materialId: string) {
-    const material = await tx.material.findUnique({
-      where: { id: materialId },
-      select: { currentReferenceUnitCost: true },
-    });
-
-    const openLots = await tx.materialLot.findMany({
-      where: {
-        materialId,
-        remainingQuantity: {
-          gt: 0,
-        },
-      },
-      select: {
-        remainingQuantity: true,
-        unitCost: true,
-      },
-    });
-
-    let totalQuantity = 0;
-    let totalValue = 0;
-
-    for (const lot of openLots) {
-      const quantity = toNumber(lot.remainingQuantity);
-      const unitCost = toNumber(lot.unitCost);
-      totalQuantity += quantity;
-      totalValue += quantity * unitCost;
-    }
-
-    if (totalQuantity <= 0) {
-      return material?.currentReferenceUnitCost;
-    }
-
-    return tx.material.update({
-      where: { id: materialId },
-      data: {
-        currentReferenceUnitCost: round4(totalValue / totalQuantity),
-      },
-    });
+    return this.lotCosting.refreshReferenceCost(materialId, tx);
   }
 
   private async syncMaterialAlert(materialId: string) {
@@ -579,11 +549,21 @@ export class InventoryService {
       createdByUserId?: string;
     },
   ) {
-    const material = await this.getMaterialOrThrow(
+    await this.getMaterialOrThrow(
       input.businessId,
       input.materialId,
       tx,
     );
+
+    // Decision arquitectonica (INVENTORY_COSTING.md R1): oversell prohibido.
+    // assertSufficientStock lanza BadRequestException si shortfall > 0.
+    await this.lotCosting.assertSufficientStock(
+      input.materialId,
+      input.quantity,
+      input.locationId,
+      tx,
+    );
+
     const openLots = await tx.materialLot.findMany({
       where: {
         materialId: input.materialId,
@@ -622,23 +602,20 @@ export class InventoryService {
       remaining = round4(remaining - take);
     }
 
-    const fallbackUnitCost = toNumber(material.currentReferenceUnitCost);
-
-    if (remaining > 0) {
-      layers.push({
-        quantity: remaining,
-        unitCost: fallbackUnitCost,
-        totalCost: round4(remaining * fallbackUnitCost),
-      });
+    // Aqui `remaining` debe ser <= EPSILON porque assertSufficientStock paso.
+    // Si por algun race-condition no fuera asi, el stock fue tocado por otra
+    // tx — la transaccion debe abortar.
+    if (remaining > 0.005) {
+      throw new BadRequestException(
+        'Stock cambio durante la transacción. Reintenta la operación.',
+      );
     }
 
     const totalCost = round4(
       layers.reduce((sum, layer) => sum + layer.totalCost, 0),
     );
     const unitCostSnapshot =
-      input.quantity > 0
-        ? round4(totalCost / input.quantity)
-        : fallbackUnitCost;
+      input.quantity > 0 ? round4(totalCost / input.quantity) : 0;
     const currentLocationBalance = await this.getMaterialLocationBalance(
       tx,
       input.materialId,

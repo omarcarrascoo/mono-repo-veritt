@@ -420,12 +420,88 @@ export default function DailyChainScreen() {
                 />
               );
             })}
+
+            {/* AMD — visible cuando FOP firmado */}
+            {chain.fop?.status === 'SIGNED' ? (
+              <AmdCard
+                onPress={() =>
+                  router.push(
+                    `/businesses/${businessId}/daily-chain/amd` as never,
+                  )
+                }
+              />
+            ) : null}
           </View>
         ) : null}
       </ScrollView>
     </View>
   );
 }
+
+// ── AMD card (acceso al archivo certificado) ─────────────────────────
+
+const AmdCard = React.memo(function AmdCard({
+  onPress,
+}: {
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.92}
+      accessibilityRole="button"
+      accessibilityLabel="Abrir Archivo Maestro Diario"
+      style={{
+        marginTop: 14,
+        backgroundColor: surface.ink,
+        borderRadius: radius.lg,
+        padding: 18,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+      }}
+    >
+      <View
+        style={{
+          width: 42,
+          height: 42,
+          borderRadius: 21,
+          backgroundColor: withAlpha(palette.paper, 0.12),
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Ionicons name="shield-checkmark" size={18} color={palette.paper} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={{
+            color: 'rgba(245,242,234,0.6)',
+            fontSize: 9,
+            fontWeight: '900',
+            letterSpacing: 1.6,
+            textTransform: 'uppercase',
+          }}
+        >
+          Archivo Maestro Diario
+        </Text>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: palette.paper,
+            fontSize: 16,
+            fontWeight: '800',
+            letterSpacing: -0.3,
+            marginTop: 4,
+          }}
+        >
+          Día certificado · ver AMD
+        </Text>
+      </View>
+      <Ionicons name="arrow-forward" size={18} color={palette.paper} />
+    </TouchableOpacity>
+  );
+});
 
 // ── Hero ──────────────────────────────────────────────────────────────
 

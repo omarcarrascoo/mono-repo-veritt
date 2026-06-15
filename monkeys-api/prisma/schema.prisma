@@ -256,6 +256,7 @@ model Business {
   deviationReports         DailyDeviationReport[]
   cashReconciliations      DailyCashReconciliation[]
   dailyOperationCloses     DailyOperationClose[]
+  dailyMasterArchives      DailyMasterArchive[]
 }
 
 model InventoryLocation {
@@ -1394,6 +1395,7 @@ model DailyOperationClose {
 
   business        Business              @relation(fields: [businessId], references: [id])
   validationItems FOPValidationItem[]
+  amd             DailyMasterArchive?
 
   @@unique([businessId, operationalDate])
   @@index([businessId, operationalDate])
@@ -1413,4 +1415,34 @@ model FOPValidationItem {
   fop DailyOperationClose @relation(fields: [fopId], references: [id], onDelete: Cascade)
 
   @@index([fopId])
+}
+
+// ── Phase 5 — AMD (Archivo Maestro Diario) ──────────────────────────
+// Documento inmutable generado automaticamente al firmar el FOP. Sellado
+// con SHA-256 sobre JSON canonico (RFC 8785). Cualquier modificacion
+// posterior produce hash distinto — manipulacion matematicamente
+// detectable. Detalles en INVENTORY_COSTING.md y ARCHITECTURE_V3.md.
+
+enum AMDStatus {
+  GENERATED
+  VERIFIED
+  TAMPERED
+}
+
+model DailyMasterArchive {
+  id              String    @id @default(uuid())
+  businessId      String
+  operationalDate DateTime  @db.Date
+  fopId           String    @unique
+  contentJson     Json
+  contentHash     String
+  schemaVersion   Int       @default(1)
+  generatedAt     DateTime  @default(now())
+  status          AMDStatus @default(GENERATED)
+
+  business Business            @relation(fields: [businessId], references: [id])
+  fop      DailyOperationClose @relation(fields: [fopId], references: [id])
+
+  @@unique([businessId, operationalDate])
+  @@index([businessId, operationalDate])
 }

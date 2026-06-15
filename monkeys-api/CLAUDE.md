@@ -8,17 +8,28 @@ NestJS 11.x, Prisma 7.x (`@prisma/adapter-pg`), PostgreSQL (Supabase), JWT Auth,
 
 ```
 src/
-├── auth/           # Register, login, JWT strategy
-├── users/          # User profile
-├── businesses/     # Business CRUD + slug generation
-├── memberships/    # Business member invites/roles
-├── onboarding/     # Business setup wizard
-├── staff/          # Staff profiles + compensation + history
-├── payroll/        # Payment tracking + scheduling
-├── inventory/      # Materials, products, locations, lots, movements
-├── notifications/  # Alerts (payroll due, low stock, etc.)
-├── database/prisma/# PrismaService (adapter-pg + pool)
-└── common/         # JwtAuthGuard, CurrentUser, ParseUUIDPipe, decorators
+├── auth/             # Register, login, JWT strategy
+├── users/            # User profile
+├── businesses/       # Business CRUD + slug generation
+├── memberships/      # Business member invites/roles
+├── onboarding/       # Business setup wizard
+├── areas/            # Work areas inside a business
+├── staff/            # Staff profiles + compensation + history
+├── payroll/          # Payment tracking + scheduling
+├── time-tracking/    # Shifts — route segment is /shifts (NOT /time-tracking)
+├── inventory/        # Materials, products, locations, lots, movements, costing
+├── payment-methods/  # Payment methods catalog
+├── suppliers/        # Supplier directory
+├── purchase-orders/  # POs to suppliers
+├── receipts/         # Goods receipts (stock-in from POs)
+├── supplier-invoices/# Supplier billing
+├── sales/            # POS sales
+├── processes/        # Production processes (recipes -> output)
+├── daily-chain/      # Daily operational chain: FAI -> FCI -> FID -> FAF -> FOP
+├── amd/              # Archivo Maestro Diario (signed daily snapshot + hash)
+├── notifications/    # Alerts (payroll due, low stock, etc.) — NOT nested under businesses
+├── database/prisma/  # PrismaService (adapter-pg + pool)
+└── common/           # JwtAuthGuard, CurrentUser, ParseUUIDPipe, decorators
 ```
 
 ## Critical Rules
@@ -47,6 +58,15 @@ Controller (thin)  ->  Service (logic + auth)  ->  Repository (Prisma only)
 - Always create DTO classes with `class-validator` decorators for POST/PATCH
 - Never leak raw Prisma input types into controllers
 - Route params: use `ParseUUIDPipe` for ID params
+
+### Common 400/403 Footguns (avoid these errors)
+
+- **`forbidNonWhitelisted: true`** — any field NOT on the DTO returns `400`. Don't send/accept extra keys. When adding a field, add it to the DTO first.
+- **`ParseUUIDPipe`** — if a route uses it, a non-UUID `:id` (or `:businessId`) returns `400` before the service runs.
+- **`transform: true`** — query/param strings are coerced to DTO types; rely on it instead of manual `Number(...)` parsing.
+- **Business-scoped authz is in the service, never the controller.** Follow the existing pattern: `ensureBusinessAccess(businessId, userId)` (throws `ForbiddenException` if not a member) then a role gate, e.g. `if (!['OWNER','ADMIN','VERITT_STAFF'].includes(membership.role)) throw new ForbiddenException(...)`. See `sales.service.ts`.
+- **Raw `@Body('field')` (no DTO) exists in `daily-chain` reject/sign** (`reason`, `discrepancyJustification`). These bypass class-validator — validate manually in the service. Prefer a DTO for new endpoints.
+- **`notifications` is global, not business-scoped** — `businessId` is an optional query param, not a route segment.
 
 ### Data Mutations
 
@@ -78,6 +98,7 @@ Controller (thin)  ->  Service (logic + auth)  ->  Repository (Prisma only)
 7. **Module**: `<entity>.module.ts` — import PrismaModule, provide repo/service/controller
 8. **Wire**: Add to `app.module.ts` imports
 9. **Test**: Write `*.spec.ts` (Jest + ts-jest, test files in `src/`)
+10. **Postman**: Add a folder + requests in `postman/generate-collection.mjs`, then regenerate (see below)
 
 ## Adding a New Endpoint to Existing Module
 
@@ -86,6 +107,18 @@ Controller (thin)  ->  Service (logic + auth)  ->  Repository (Prisma only)
 3. Add service method (permission check + business logic)
 4. Add controller method (guard + DTO + delegate)
 5. If response shape is new: coordinate with mobile types update
+6. **Register it in Postman** (mandatory — see below)
+
+## Postman Collection (keep in sync — MANDATORY)
+
+Every route decorator in `src/**/*.controller.ts` must have a matching request in the Postman collection. They are kept **1:1** (currently 128 requests = 128 route decorators).
+
+- **Source of truth:** `postman/generate-collection.mjs` (NOT the JSON). Edit the generator, never hand-edit `Veritt-API.postman_collection.json`.
+- **After adding/changing/removing ANY endpoint**, in the same PR:
+  1. Add/edit the `req({...})` entry in the right folder of `generate-collection.mjs` (use the `B = ['businesses','{{businessId}}']` prefix for business-scoped routes; set `auth:false` for public routes; use `capture` to chain IDs).
+  2. Regenerate: `node postman/generate-collection.mjs`
+  3. Verify the printed `Folders: N | Requests: M` count went up/down as expected and matches the real route count.
+- Align request bodies to the DTO exactly — extra fields cause `400` (`forbidNonWhitelisted`).
 
 ## Commands
 

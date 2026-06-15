@@ -65,20 +65,32 @@ app/index.tsx -> useAuthBootstrap() -> token check
 
 ### Components
 
-Reuse these before creating new ones:
+**Reuse these before creating new ones.** This is the full inventory of `components/ui/` — check it first; only build new when nothing fits.
 
 | Component | Purpose |
 |-----------|---------|
-| `VrittButton` | Primary/secondary/outline buttons |
-| `VrittInput` | Text inputs with labels |
-| `VrittSelect` | Dropdown selects |
-| `VrittCard` | Card containers |
-| `VrittHeader` | Screen headers with back nav |
 | `VrittScreen` | Safe-area screen wrapper |
+| `VrittWebPanel` | Desktop web layout wrapper |
+| `VrittHeader` | Screen headers with back nav |
+| `VrittScreenHeader` | Screen title/header block |
+| `VrittSheetHeader` | Header for bottom-sheet / modal |
+| `VrittTabsWebHeader` | Tab header for web layout |
+| `VrittSectionLabel` | Section dividers |
+| `VrittCard` | Card containers |
+| `VrittButton` | Primary/secondary/outline buttons |
+| `VrittPrimaryButton` | Emphasized primary CTA |
+| `VrittTextButton` | Low-emphasis text/link button |
+| `VrittInput` | Text inputs with labels |
+| `VrittAppInput` | App-styled labeled input |
+| `VrittSelect` | Dropdown selects |
+| `VrittBottomDock` | Sticky bottom action bar |
+| `VrittStatusChip` | Status/state pill badge |
+| `VrittInfoBanner` | Inline info/warning banner |
 | `VrittLoader` | Full-screen loading state |
 | `VrittEmptyState` | Empty list/data states |
-| `VrittSectionLabel` | Section dividers |
-| `VrittWebPanel` | Desktop web layout wrapper |
+| `VrittToast` (`VrittToastHost`) | Toast notifications — mount the host once, trigger from anywhere |
+
+When this list and `ls components/ui/` disagree, the directory wins — refresh this table.
 
 ### Navigation
 
@@ -113,12 +125,15 @@ Reuse these before creating new ones:
 2. Create `types/<domain>.types.ts` with request/response interfaces
 3. Export from the module file — screens import directly
 
-## Adding a New UI Component
+## Adding a New UI Component (reusability — do NOT skip)
 
-1. Check if an existing `Vritt*` component can be extended first
-2. Create in `components/ui/Vritt<Name>.tsx`
-3. Follow existing patterns: accept `className` for NativeWind overrides, use `veritt-*` tokens
-4. Keep it generic and reusable
+**Default to reuse.** Before writing any new component, scan the table above + `ls components/ui/`. Build new only when nothing composes to the need — and prefer composing existing `Vritt*` components over a one-off.
+
+1. Confirm no existing `Vritt*` fits or can be extended (a new `variant`/`size` prop usually beats a new component).
+2. If genuinely new, create `components/ui/Vritt<Name>.tsx` — generic and screen-agnostic. **No business logic, no API calls, no screen-specific copy inside `components/ui/`.**
+3. Match existing patterns: accept `className` for NativeWind overrides, use only `veritt-*` tokens (never hardcoded hex), typed props with explicit return type, `memo` if it's a leaf rendered in lists.
+4. Add it to the component table in this file so the next session finds it.
+5. **Red flag:** copy-pasting JSX between two screens → extract a `Vritt*` instead. Inline styling that duplicates a token → use the token.
 
 ## Commands
 
