@@ -1,0 +1,22 @@
+# Postgres desechable SOLO para pruebas e2e.
+# Datos en tmpfs (RAM) → rápido y se borra al bajar el contenedor.
+# Puerto 5433 para no chocar con una Postgres local en 5432.
+# Levantar:  npm run test:db:up
+# Bajar:     npm run test:db:down
+services:
+  veritt-test-db:
+    image: postgres:16-alpine
+    container_name: veritt-test-db
+    environment:
+      POSTGRES_USER: veritt_test
+      POSTGRES_PASSWORD: veritt_test
+      POSTGRES_DB: veritt_test
+    ports:
+      - '5433:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U veritt_test -d veritt_test']
+      interval: 2s
+      timeout: 3s
+      retries: 20
