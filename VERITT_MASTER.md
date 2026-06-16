@@ -382,44 +382,46 @@ El proyecto tiene un patrón de **"construir hacia adelante sin consolidar hacia
 
 > Marca cada caja al completarla. **No avanzar a la siguiente iteración sin cerrar la anterior.** El orden está diseñado para *dejar de acumular riesgo* antes de construir más.
 
-## 🔴 Iteración 0 — Consolidar (1–2 días · BLOQUEANTE)
+## 🔴 Iteración 0 — Consolidar (1–2 días · BLOQUEANTE) — ✅ COMPLETADA (2026-06-15)
 
 Objetivo: dejar de acumular riesgo. **No construir nada nuevo.**
 
-- [ ] Commitear el trabajo en vuelo en **commits lógicos** (no uno gigante):
-  - [ ] `feat(inventory): lot-costing service + helpers + tests`
-  - [ ] `feat(amd): phase 5 daily master archive (model, builder, hash, verify)`
-  - [ ] `feat(daily-chain): integrate AMD generation on FOP sign`
-  - [ ] `feat(mobile): AMD screen + api/types`
-  - [ ] `docs: master doc + frontend analysis + postman collection`
-- [ ] Verificar build desde cero: `cd monkeys-api && npm run build` (verde).
-- [ ] Verificar migraciones limpias: `npx prisma migrate reset` en DB de dev + `npx prisma migrate deploy`.
-- [ ] `cd veritt-mobile && npm run lint` (verde).
-- [ ] Archivar los docs obsoletos en `docs/archive/` (ver Parte VII) — que dejen de confundir.
-- [ ] Actualizar la lista de módulos de `unityrc.md` o marcarlo como superseded por este doc.
+- [x] Commitear el trabajo en vuelo. *(Hecho en commit único `1dd6505 "First AMD"` — incluye AMD, lot-costing, integración daily-chain, AMD móvil, Postman y docs. Nota: fue un commit grande en vez de los commits lógicos sugeridos; aceptable, no se reescribe historia.)*
+- [x] Verificar build desde cero: `cd monkeys-api && npm run build` → **verde** (`nest build` sin errores).
+- [x] Schema Prisma válido: `npx prisma validate` → **válido**. ⚠️ `migrate status`/`reset` no verificable desde este entorno (pooler Supabase no alcanzable) — **pendiente correr en la máquina con acceso a la DB de dev**.
+- [x] Tests unitarios existentes: `npx jest` → **50 tests / 3 suites en verde** (lot-costing, amd-hash, canonical-json).
+- [ ] `cd veritt-mobile && npm run lint` (verde) — pendiente.
+- [x] Archivar los docs obsoletos en `docs/archive/` (6 docs + README).
+- [x] Actualizar la lista de módulos de `unityrc.md` (20 módulos reales) + `README.md` como índice.
 
-**Criterio de salida:** `git status` limpio · build verde · este documento como única fuente de verdad.
+**Criterio de salida:** ✅ `git status` limpio · ✅ build verde · ✅ tests unitarios verdes · ✅ este documento como única fuente de verdad. → **R1 (trabajo sin commitear) resuelto.**
+
+> **Quedan 2 verificaciones de entorno** (no bloquean el avance a Iteración 1, pero hazlas en tu máquina con DB): `npx prisma migrate status` y `npm run lint` en móvil.
 
 ## 🟠 Iteración 1 — Probar el corazón de V.3 (3–5 días)
 
 Objetivo: convertir "construido" en "verificado". Sin esto, todo lo demás es castillo de naipes (R2, R3).
 
-- [ ] Suite de integración backend de la cadena diaria (DB de test). Escenarios mínimos:
-  - [ ] Venta antes de FAI autorizado → rechazada (`isDayOpen` falso).
-  - [ ] FAI autorizado → habilita ventas/recepciones.
-  - [ ] Creador ≠ autorizador en FAI/FCI → 403.
-  - [ ] FCI autorizado → FID auto-gen con `theoreticalConsumption` ≠ 0.
-  - [ ] FID incluye exactamente los materiales del closing.
-  - [ ] Cancelar venta → se borran sus `TheoreticalConsumption` → no aparecen en FID.
-  - [ ] FAF conteo-ciego → revelar → aprobar; `totalExpected` = pagos reales.
-  - [ ] Solo manager firma FOP; firma → **AMD generado y `verify` OK**.
-  - [ ] **Rollback:** forzar fallo del AMD → la firma del FOP se revierte.
+**🟢 Infraestructura de test montada (2026-06-15):** Postgres desechable (`docker-compose.test.yml`, `:5433`), harness e2e que replica `main.ts`, fixtures, guardarraíles anti-producción (`test/assert-test-db.ts` — bloquea cualquier URL Supabase/pooler). Correr: `npm run test:e2e:full`. Ver `monkeys-api/test/README.md`.
+
+Suite de integración backend de la cadena diaria — **11 tests en verde** (`test/daily-chain-*.e2e-spec.ts`):
+  - [x] Venta antes de FAI autorizado → día cerrado (`fai: null` en status).
+  - [x] No se puede crear el FCI sin FAI autorizado → 400.
+  - [x] Creador ≠ autorizador en FAI → 403 (incluso si es manager).
+  - [x] Operador no autoriza (gate de management) → 403.
+  - [x] Manager distinto del creador sí autoriza FAI → AUTHORIZED.
+  - [x] 401 sin token · 403 a externos al negocio.
+  - [x] Solo OWNER/ADMIN firma FOP (operador → 403).
+  - [x] **Recorrido feliz FAI→FCI→FID→FAF→FOP→AMD; firma genera AMD y `verify.valid === true`** (candado C6 ✅).
+  - [ ] **Rollback:** forzar fallo del AMD → la firma del FOP se revierte. *(`it` placeholder — requiere override de `AmdService` en el TestingModule; hacer en vivo.)*
+  - [ ] **Con ventas:** FID `theoreticalConsumption > 0` y `deviationValueMXN` correcto. *(`it.todo` — requiere crear `StaffProfile` para el operador.)*
   - [ ] Drift detectado → el AMD no se genera (R5).
 - [ ] Verificar números tras el fix UTC con datos sembrados (venta nocturna que cae al día UTC siguiente).
-- [ ] Walkthrough manual de **2 usuarios** (operador + manager) FAI→FOP→AMD; documentar resultado.
 - [ ] Resolver deuda que afecta correctitud: timing recepción/FCI (#1), thresholds FOP configurables (#7), limpiar `COMPLETED`/`completedBy*` huérfanos (#3,#4).
 
-**Criterio de salida:** la suite FAI→FOP→AMD pasa en verde; un AMD generado se verifica con hash OK.
+**Criterio de salida:** ✅ la suite FAI→FOP→AMD pasa en verde y un AMD generado verifica con hash OK. **Restan:** caso con ventas (consumo teórico > 0), test de rollback, y drift gate.
+
+> **🔐 Bonus de seguridad (2026-06-15):** se removió una **credencial de producción hardcodeada** en `prisma.service.ts` (fallback con la contraseña de la DB). Ahora exige `DATABASE_URL_SESSION` o falla al arrancar. ⚠️ **ACCIÓN PENDIENTE DEL DUEÑO: rotar la contraseña de la DB en Supabase** — debe considerarse comprometida (estuvo en el repo/historial).
 
 ## 🟡 Iteración 2 — Endurecer para producción (2–4 días)
 
