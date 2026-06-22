@@ -1,8 +1,10 @@
-# VERITT — Documento Maestro
+# VERITT — Documento Maestro (Estado)
 
-> **Qué es este documento:** la consolidación de los 9 documentos de `root/` contrastada **uno a uno contra el código real**. Es la **única fuente de verdad** para saber dónde estamos y qué sigue. Antes de construir nada nuevo, revísalo.
+> **Qué es este documento:** el **ESTADO real del proyecto verificado contra el código** — dónde estamos, qué existe, qué falta, y el roadmap. Antes de construir nada nuevo, revísalo.
 >
-> **Fecha de consolidación:** 2026-06-15 · **Rama:** `development`
+> **Relación con la VISIÓN:** la visión oficial de Veritt vive ahora en [`VERITT_V8_VISION.md`](VERITT_V8_VISION.md) (V8.0, reemplaza al antiguo `ARCHITECTURE_V3.md` ya archivado). El delta entre esa visión y lo construido está en [`GAP_V8_VS_CODE.md`](GAP_V8_VS_CODE.md). Este documento es el **estado**; el V8.0 es el **deber ser**. Si hay contradicción sobre *qué debe ser* el sistema, prevalece el V8.0; sobre *qué existe hoy*, prevalece este (verificado en disco).
+>
+> **Fecha de consolidación:** 2026-06-15 (actualizado 2026-06-16 con V8.0) · **Rama:** `development`
 >
 > **Cómo leerlo:**
 > - **Parte I** — la visión y arquitectura (el *por qué*). No cambia.

@@ -14,11 +14,13 @@
 | `PHASE4_PLAN.md` | s/f | Blueprint original de la cadena diaria. |
 | `PHASE4_COMPLETION_PLAN.md` | 2026-04-14 | El ~5% final de la Fase 4 (role en `GET /businesses`, FAF approval). |
 | `PHASE4_SESSION_HANDOFF.md` | 2026-04-14 | Matemática as-built, issues conocidos, next-steps de la Fase 4. |
+| `ARCHITECTURE_V3.md` | 2026 | La visión conceptual V3. **Reemplazada por `VERITT_V8_VISION.md`** (V8.0). |
 
 ## Documentos vivos (en la raíz)
 
-- [`VERITT_MASTER.md`](../../VERITT_MASTER.md) — fuente de verdad: estado, roadmap, riesgos.
-- [`ARCHITECTURE_V3.md`](../../ARCHITECTURE_V3.md) — la visión conceptual.
+- [`VERITT_V8_VISION.md`](../../VERITT_V8_VISION.md) — **visión oficial (V8.0)**, reemplaza a ARCHITECTURE_V3.
+- [`VERITT_MASTER.md`](../../VERITT_MASTER.md) — estado verificado vs código, roadmap, riesgos.
+- [`GAP_V8_VS_CODE.md`](../../GAP_V8_VS_CODE.md) — delta entre la visión V8.0 y el código.
 - [`INVENTORY_COSTING.md`](../../INVENTORY_COSTING.md) — referencia técnica del costeo por lotes.
 - [`FRONTEND_ANALYSIS.md`](../../FRONTEND_ANALYSIS.md) — flujos y componentes móviles.
 - [`STATE_AND_ITERATION_PLAN.md`](../../STATE_AND_ITERATION_PLAN.md) — análisis crítico extendido.

@@ -6,14 +6,17 @@
 
 ## 📍 Empieza aquí
 
-**[`VERITT_MASTER.md`](VERITT_MASTER.md)** es la **fuente de verdad**: estado del proyecto fase por fase (verificado contra el código), riesgos, y el roadmap con checkboxes. Léelo antes de construir o iterar.
+- **Visión (qué debe ser):** [`VERITT_V8_VISION.md`](VERITT_V8_VISION.md) — el Documento Maestro V8.0.
+- **Estado (qué existe hoy):** [`VERITT_MASTER.md`](VERITT_MASTER.md) — verificado contra el código, con el roadmap.
+- **El delta entre ambos:** [`GAP_V8_VS_CODE.md`](GAP_V8_VS_CODE.md).
 
 ## 📚 Documentación viva
 
 | Documento | Para qué |
 |---|---|
-| [`VERITT_MASTER.md`](VERITT_MASTER.md) | 🟢 Estado, riesgos y roadmap. Fuente de verdad. |
-| [`ARCHITECTURE_V3.md`](ARCHITECTURE_V3.md) | La visión conceptual (el *por qué*). |
+| [`VERITT_V8_VISION.md`](VERITT_V8_VISION.md) | 🟢 **Visión oficial (V8.0).** Qué debe ser Veritt. Reemplaza a ARCHITECTURE_V3. |
+| [`VERITT_MASTER.md`](VERITT_MASTER.md) | 🟢 **Estado** verificado vs código, riesgos y roadmap. |
+| [`GAP_V8_VS_CODE.md`](GAP_V8_VS_CODE.md) | 🟢 Qué del V8.0 ya existe / falta / delta de esfuerzo. |
 | [`INVENTORY_COSTING.md`](INVENTORY_COSTING.md) | Referencia técnica del costeo por lotes (FIFO). |
 | [`FRONTEND_ANALYSIS.md`](FRONTEND_ANALYSIS.md) | Flujos de usuario y componentes reutilizables (móvil). |
 | [`STATE_AND_ITERATION_PLAN.md`](STATE_AND_ITERATION_PLAN.md) | Análisis crítico extendido del estado e iteración. |
