@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { RequestLoggerInterceptor } from './common/interceptors/request-logger.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -19,6 +20,13 @@ async function bootstrap() {
   app.enableCors(corsOptions);
   
   app.enableShutdownHooks();
+
+  app.useGlobalInterceptors(
+    new RequestLoggerInterceptor({
+      slowThresholdMs: 1000,
+      excludePaths: ['/api/v1/health'],
+    }),
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({

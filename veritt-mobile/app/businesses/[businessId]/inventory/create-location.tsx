@@ -1,113 +1,151 @@
-import React, { useState } from 'react'
-import { Alert, KeyboardAvoidingView, Platform, Text, View } from 'react-native'
-import { router, useLocalSearchParams } from 'expo-router'
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  View,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 
-import { inventoryApi } from '@/api/modules/inventory.api'
-import { VrittButton } from '@/components/ui/VrittButton'
-import { VrittCard } from '@/components/ui/VrittCard'
-import { VrittHeader } from '@/components/ui/VrittHeader'
-import { VrittInput } from '@/components/ui/VrittInput'
-import { VrittScreen } from '@/components/ui/VrittScreen'
-import { VrittSelect } from '@/components/ui/VrittSelect'
-import { VrittSectionLabel } from '@/components/ui/VrittSectionLabel'
-import { InventoryLocationType } from '@/types/inventory.types'
-import { getApiErrorMessage } from '@/utils/error.utils'
+import { inventoryApi } from '@/api/modules/inventory.api';
+import { useBusinessStore } from '@/store/business.store';
+import { permissions } from '@/lib/role-permissions';
+import { notify } from '@/lib/notify';
+import { getApiErrorMessage } from '@/utils/error.utils';
+import type { InventoryLocationType } from '@/types/inventory.types';
+import { surface } from '@/constants/design-tokens';
 
-const LOCATION_TYPE_OPTIONS: { label: string; value: InventoryLocationType; hint?: string }[] = [
-  { label: 'Almacén', value: 'WAREHOUSE', hint: 'Ideal para CEDIS o bodega' },
-  { label: 'Restaurante', value: 'RESTAURANT', hint: 'Punto de venta o sucursal' },
-  { label: 'Cocina', value: 'KITCHEN', hint: 'Producción o preparación' },
-  { label: 'Otro', value: 'OTHER', hint: 'Ubicación operativa adicional' },
-]
+import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
+import { VrittInventoryCard } from '@/components/inventory/VrittInventoryCard';
+import {
+  VrittPaperInput,
+  VrittPaperOptionPicker,
+} from '@/components/inventory/VrittPaperInput';
+import { VrittInventoryFooterActions } from '@/components/inventory/VrittInventoryFooterActions';
+
+const TYPE_OPTIONS: {
+  label: string;
+  value: InventoryLocationType;
+  icon: 'archive-outline' | 'storefront-outline' | 'restaurant-outline' | 'location-outline';
+}[] = [
+  { label: 'Almacén', value: 'WAREHOUSE', icon: 'archive-outline' },
+  { label: 'Restaurante', value: 'RESTAURANT', icon: 'storefront-outline' },
+  { label: 'Cocina', value: 'KITCHEN', icon: 'restaurant-outline' },
+  { label: 'Otro', value: 'OTHER', icon: 'location-outline' },
+];
 
 export default function CreateInventoryLocationScreen() {
-  const { businessId } = useLocalSearchParams<{ businessId: string }>()
+  const { businessId } = useLocalSearchParams<{ businessId: string }>();
 
-  const [name, setName] = useState('')
-  const [type, setType] = useState<InventoryLocationType>('WAREHOUSE')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const role = useBusinessStore((s) =>
+    businessId ? s.getRole(businessId) : null,
+  );
+  const canManageInventory = permissions.canManageInventory(role);
 
-  const handleCreateLocation = async () => {
-    if (!businessId) return
+  useEffect(() => {
+    if (!canManageInventory && businessId) {
+      router.replace(`/businesses/${businessId}/inventory`);
+    }
+  }, [canManageInventory, businessId]);
 
+  const [name, setName] = useState('');
+  const [type, setType] = useState<InventoryLocationType>('WAREHOUSE');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const onBack = useCallback(() => router.back(), []);
+
+  const handleCreate = useCallback(async () => {
+    if (!businessId) return;
     if (!name.trim()) {
-      Alert.alert('Falta el nombre', 'Asigna un nombre para esta ubicación.')
-      return
+      notify.warning(
+        'Falta el nombre',
+        'Asigna un nombre para esta ubicación.',
+      );
+      return;
     }
 
     try {
-      setIsSubmitting(true)
+      setIsSubmitting(true);
       await inventoryApi.createLocation(businessId, {
         name: name.trim(),
         type,
-      })
-
-      router.replace(`/businesses/${businessId}/inventory`)
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        getApiErrorMessage(error, 'No pudimos crear la ubicación.')
-      )
+      });
+      notify.success('Ubicación creada', 'Ya puedes asignar stock aquí.');
+      router.replace(`/businesses/${businessId}/inventory`);
+    } catch (err) {
+      notify.error(
+        'No pudimos crear la ubicación',
+        getApiErrorMessage(err, 'Intenta de nuevo en unos segundos.'),
+      );
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  }, [businessId, name, type]);
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-veritt-bg"
+      style={{ flex: 1, backgroundColor: surface.paper }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <VrittScreen scrollable>
-        <View className="gap-8">
-          <VrittHeader
-            title="Agrega una ubicación."
-            subtitle="Crea almacenes, cocinas o restaurantes dentro del mismo negocio para mover stock entre ellos."
+      <StatusBar barStyle="dark-content" backgroundColor={surface.paper} />
+
+      <VrittInventoryHeader
+        eyebrow="Inventario"
+        title="Nueva ubicación"
+        onBack={onBack}
+      />
+
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 28,
+          paddingBottom: 220,
+          gap: 28,
+        }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <VrittInventoryCard
+          eyebrow="Contexto"
+          description="Tu negocio ya tiene una ubicación principal. Usa esta pantalla para crear sucursales, CEDIS o cocinas adicionales y mover stock entre ellas."
+        />
+
+        <View style={{ gap: 16 }}>
+          <VrittPaperInput
+            label="Nombre"
+            placeholder="CEDIS Norte"
+            value={name}
+            onChangeText={setName}
+            editable={!isSubmitting}
+            required
           />
 
-          <VrittCard>
-            <VrittSectionLabel className="mb-3">Contexto</VrittSectionLabel>
-            <Text className="text-[14px] leading-[22px] text-veritt-muted">
-              Tu negocio ya cuenta con una ubicación principal creada automáticamente.
-              Usa esta pantalla para agregar ubicaciones opcionales como CEDIS, cocinas
-              o sucursales.
-            </Text>
-          </VrittCard>
-
-          <View className="gap-4">
-            <VrittInput
-              label="Nombre"
-              placeholder="CEDIS Norte"
-              value={name}
-              onChangeText={setName}
-              editable={!isSubmitting}
-            />
-
-            <VrittSelect
-              label="Tipo de ubicación"
-              value={type}
-              options={LOCATION_TYPE_OPTIONS}
-              onChange={setType}
-              disabled={isSubmitting}
-            />
-          </View>
-
-          <View className="gap-3.5">
-            <VrittButton
-              label="Guardar ubicación"
-              loading={isSubmitting}
-              onPress={handleCreateLocation}
-            />
-
-            <VrittButton
-              label="Cancelar"
-              variant="secondary"
-              onPress={() => router.back()}
-              disabled={isSubmitting}
-            />
-          </View>
+          <VrittPaperOptionPicker
+            label="Tipo de ubicación"
+            options={TYPE_OPTIONS}
+            value={type}
+            onChange={setType}
+            required
+          />
         </View>
-      </VrittScreen>
+
+        <VrittInventoryFooterActions
+          primary={{
+            label: 'Guardar ubicación',
+            icon: 'save-outline',
+            onPress: handleCreate,
+            loading: isSubmitting,
+            disabled: !name.trim(),
+          }}
+          secondary={{
+            label: 'Cancelar',
+            onPress: onBack,
+            disabled: isSubmitting,
+          }}
+        />
+      </ScrollView>
     </KeyboardAvoidingView>
-  )
+  );
 }

@@ -123,19 +123,25 @@ Use these rules to keep changes consistent with the current architecture and cod
 - `PrismaService` uses `@prisma/adapter-pg` plus `pg` pool initialization. Preserve that pattern unless you are intentionally refactoring the database layer.
 
 ## 5) Module Boundaries (Current Backend)
-Current feature modules:
-- `auth`
-- `users`
-- `businesses`
-- `memberships`
-- `onboarding`
-- `staff`
+Current feature modules (20), grouped by domain. The always-current route list is the Postman collection (`postman/generate-collection.mjs`, 1:1 with controllers).
+
+- **Core / identity:** `auth`, `users`, `businesses`, `memberships`, `onboarding`
+- **People:** `staff`, `payroll`, `time-tracking` (routes under `/shifts`)
+- **Operations config:** `areas`, `processes`
+- **Inventory:** `inventory` (materials, products, locations, lots, recipes, costing)
+- **Sales:** `sales`, `payment-methods`
+- **Supply chain:** `suppliers`, `purchase-orders`, `receipts`, `supplier-invoices`
+- **Daily chain (Phase 4):** `daily-chain` (FAI -> FCI -> FID -> FAF -> FOP)
+- **AMD (Phase 5):** `amd` (signed daily snapshot + SHA-256 verify)
+- **Cross-cutting:** `notifications`
 
 Shared infrastructure:
 - `database/prisma`
 - `common`
 
-Respect module encapsulation: controllers -> services -> repositories. Avoid reaching into another module's repository directly or introducing circular dependencies.
+Respect module encapsulation: controllers -> services -> repositories. Avoid reaching into another module's repository directly or introducing circular dependencies. Note: `daily-chain` depends on `amd` via `forwardRef` (FOP signing triggers AMD generation in the same transaction) — keep that the only such cycle.
+
+> Source of truth for project status / roadmap is `VERITT_MASTER.md`. This file is coding rules only.
 
 ## 6) Monorepo Coordination Rules
 - Repo layout is two sibling apps under one git repo, each with its own dependencies and `package-lock.json`.

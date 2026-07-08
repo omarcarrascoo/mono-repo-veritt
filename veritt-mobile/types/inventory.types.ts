@@ -35,15 +35,21 @@ export type InventoryMovementType =
 
 export type ProductType = 'DIRECT' | 'RECIPE'
 
+// RAW: se compra a proveedor. TRANSFORMED: semi-elaborado producido
+// internamente (carne marinada, aderezos), usable en recetas.
+export type MaterialKind = 'RAW' | 'TRANSFORMED'
+
 export interface InventoryLocation {
   id: string
   businessId: string
   name: string
   type: InventoryLocationType
   isPrimary: boolean
+  areaId?: string | null
   status: InventoryStatus
   createdAt?: string
   updatedAt?: string
+  area?: { id: string; name: string; type: string } | null
 }
 
 export interface MaterialLot {
@@ -72,6 +78,7 @@ export interface Material {
   businessId: string
   name: string
   baseUnit: string
+  kind: MaterialKind
   category?: string | null
   sku?: string | null
   reorderFrequencyDays?: number | null
@@ -185,6 +192,7 @@ export interface Product {
   stockUnit: string
   estimatedDailySalesVolume?: DecimalValue | null
   minStock: DecimalValue
+  makeToOrder: boolean
   currentStock: DecimalValue
   currentSalePrice: DecimalValue
   currentMaterialCost: DecimalValue
@@ -234,6 +242,7 @@ export interface UpdateInventoryLocationDto {
 export interface CreateMaterialDto {
   name: string
   baseUnit: string
+  kind?: MaterialKind
   category?: string
   sku?: string
   reorderFrequencyDays?: number
@@ -276,6 +285,7 @@ export interface CreateProductDto {
   stockUnit?: string
   estimatedDailySalesVolume?: number
   minStock?: number
+  makeToOrder?: boolean
 }
 
 export interface UpdateProductDto extends Partial<CreateProductDto> {

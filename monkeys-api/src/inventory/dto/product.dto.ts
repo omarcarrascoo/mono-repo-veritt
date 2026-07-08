@@ -1,5 +1,6 @@
 import {
   ArrayMinSize,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsNumber,
@@ -41,6 +42,12 @@ export class CreateProductDto {
   @IsNumber()
   @Min(0)
   minStock?: number;
+
+  // Producto "al momento": no lleva stock de terminado (la venta no descuenta
+  // su currentStock). Aplica a RECIPE — al vender sí consume los insumos.
+  @IsOptional()
+  @IsBoolean()
+  makeToOrder?: boolean;
 }
 
 export class UpdateProductDto {
@@ -65,6 +72,10 @@ export class UpdateProductDto {
   @IsNumber()
   @Min(0)
   minStock?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  makeToOrder?: boolean;
 
   @IsOptional()
   @IsEnum(InventoryStatusDto)

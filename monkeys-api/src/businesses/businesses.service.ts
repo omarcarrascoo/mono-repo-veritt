@@ -15,8 +15,15 @@ export class BusinessesService {
     return this.businessesRepository.createWithOwner(userId, dto);
   }
 
-  findMine(userId: string) {
-    return this.businessesRepository.findByUser(userId);
+  async findMine(userId: string) {
+    const businesses = await this.businessesRepository.findByUser(userId);
+    return businesses.map((b) => {
+      const { memberships, ...rest } = b;
+      return {
+        ...rest,
+        userRole: memberships[0]?.role ?? null,
+      };
+    });
   }
 
   async findOne(businessId: string, userId: string) {

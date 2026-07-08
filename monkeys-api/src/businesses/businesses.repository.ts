@@ -40,6 +40,15 @@ export class BusinessesRepository {
   findByUser(userId: string) {
     return this.prisma.business.findMany({
       where: { memberships: { some: { userId, status: 'ACTIVE' } } },
+      include: {
+        onboarding: true,
+        inventoryLocations: true,
+        memberships: {
+          where: { userId, status: 'ACTIVE' },
+          select: { role: true },
+          take: 1,
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

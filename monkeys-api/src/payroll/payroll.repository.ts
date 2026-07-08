@@ -149,6 +149,38 @@ export class PayrollRepository {
     });
   }
 
+  async upsertScheduledPaymentsBatch(inputs: UpsertScheduledPaymentInput[]) {
+    if (inputs.length === 0) return;
+
+    const staffId = inputs[0].staffProfileId;
+    const dates = inputs.map((i) => i.dueDate);
+    const minDate = dates.reduce((min, d) => (d < min ? d : min), dates[0]);
+    const maxDate = dates.reduce((max, d) => (d > max ? d : max), dates[0]);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payrollPayment.deleteMany({
+        where: {
+          staffProfileId: staffId,
+          status: 'PENDING',
+          dueDate: { gte: minDate, lte: maxDate },
+        },
+      });
+
+      await tx.payrollPayment.createMany({
+        data: inputs.map((i) => ({
+          businessId: i.businessId,
+          staffProfileId: i.staffProfileId,
+          amount: i.amount,
+          currency: i.currency,
+          payrollFrequency: i.payrollFrequency,
+          dueDate: i.dueDate,
+          status: PayrollPaymentStatus.PENDING,
+        })),
+        skipDuplicates: true,
+      });
+    });
+  }
+
   listUpcomingOpenPayments(businessId: string, endDate: Date) {
     return this.prisma.payrollPayment.findMany({
       where: {

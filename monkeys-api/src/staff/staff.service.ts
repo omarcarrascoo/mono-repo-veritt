@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { StaffRepository } from './staff.repository';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -30,6 +32,15 @@ export class StaffService {
     assertValidFirstPaymentDate(compensation.payrollFrequency, firstPaymentDate);
   }
 
+  private mapAccessLevelToRole(level: string): string {
+    const map: Record<string, string> = {
+      ADMIN: 'ADMIN',
+      SUPERVISOR: 'SUPERVISOR',
+      OPERATOR: 'OPERATOR',
+    };
+    return map[level] || 'OPERATOR';
+  }
+
   async create(businessId: string, userId: string, dto: CreateStaffDto) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
@@ -39,7 +50,38 @@ export class StaffService {
 
     this.validateCompensation(dto.compensation);
 
-    const staff = await this.staffRepository.create(businessId, dto);
+    // Validate username uniqueness
+    if (dto.username) {
+      const existingByUsername = await this.staffRepository.findByUsername(businessId, dto.username);
+      if (existingByUsername) {
+        throw new ConflictException(`El username "${dto.username}" ya está en uso en este negocio.`);
+      }
+    }
+
+    // If staff needs system access with password, create a User account
+    let linkedUserId: string | undefined;
+    if (dto.password && dto.systemAccessLevel && dto.systemAccessLevel !== 'NONE') {
+      if (!dto.email) {
+        throw new BadRequestException('El correo es obligatorio para empleados con acceso al sistema.');
+      }
+
+      const existingUser = await this.staffRepository.findUserByEmail(dto.email);
+      if (existingUser) {
+        throw new ConflictException(`El correo "${dto.email}" ya está registrado en el sistema.`);
+      }
+
+      const passwordHash = await bcrypt.hash(dto.password, 10);
+      const newUser = await this.staffRepository.createUserWithMembership(
+        dto.email,
+        passwordHash,
+        dto.fullName,
+        businessId,
+        this.mapAccessLevelToRole(dto.systemAccessLevel),
+      );
+      linkedUserId = newUser.id;
+    }
+
+    const staff = await this.staffRepository.create(businessId, dto, linkedUserId);
 
     if (!staff) {
       throw new NotFoundException('Staff member not found after creation');
@@ -55,8 +97,8 @@ export class StaffService {
   async list(businessId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership) {
-      throw new ForbiddenException('You do not belong to this business');
+    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     return this.staffRepository.listByBusiness(businessId);
@@ -65,8 +107,8 @@ export class StaffService {
   async getById(businessId: string, staffId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership) {
-      throw new ForbiddenException('You do not belong to this business');
+    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     const staff = await this.staffRepository.findById(businessId, staffId);
@@ -105,8 +147,8 @@ export class StaffService {
   async listCompensationHistory(businessId: string, staffId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership) {
-      throw new ForbiddenException('You do not belong to this business');
+    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     const staff = await this.staffRepository.findById(businessId, staffId);
