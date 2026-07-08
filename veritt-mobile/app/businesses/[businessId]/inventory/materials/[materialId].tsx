@@ -3,11 +3,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StatusBar,
+  Text,
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { businessesApi } from '@/api/modules/businesses.api';
 import { inventoryApi } from '@/api/modules/inventory.api';
@@ -23,8 +26,8 @@ import {
   valueOfMaterial,
 } from '@/lib/inventory-formatters';
 import type { Business } from '@/types/business.types';
-import type { Material } from '@/types/inventory.types';
-import { palette, surface } from '@/constants/design-tokens';
+import type { Material, MaterialKind } from '@/types/inventory.types';
+import { palette, surface, text } from '@/constants/design-tokens';
 
 import { VrittLoader } from '@/components/ui/VrittLoader';
 import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
@@ -56,6 +59,7 @@ export default function MaterialDetailScreen() {
   const [editCategory, setEditCategory] = useState('');
   const [editSku, setEditSku] = useState('');
   const [editMinStock, setEditMinStock] = useState('');
+  const [editKind, setEditKind] = useState<MaterialKind>('RAW');
 
   const loadAll = useCallback(async () => {
     if (!businessId || !materialId) return;
@@ -71,6 +75,7 @@ export default function MaterialDetailScreen() {
       setEditCategory(matData.category ?? '');
       setEditSku(matData.sku ?? '');
       setEditMinStock(String(Number(matData.minStock)));
+      setEditKind(matData.kind ?? 'RAW');
     } catch (err) {
       notify.error(
         'No pudimos cargar el insumo',
@@ -96,6 +101,7 @@ export default function MaterialDetailScreen() {
         category: editCategory.trim() || undefined,
         sku: editSku.trim() || undefined,
         minStock: Number(editMinStock) || 0,
+        kind: editKind,
       });
       notify.success('Cambios guardados', 'El insumo fue actualizado.');
       setIsEditing(false);
@@ -115,6 +121,7 @@ export default function MaterialDetailScreen() {
     editCategory,
     editSku,
     editMinStock,
+    editKind,
     loadAll,
   ]);
 
@@ -331,6 +338,53 @@ export default function MaterialDetailScreen() {
           <>
             <VrittInventoryCard eyebrow="Editar datos">
               <View style={{ gap: 14 }}>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {(
+                    [
+                      { value: 'RAW' as const, label: 'Comprado', icon: 'cube-outline' as const },
+                      {
+                        value: 'TRANSFORMED' as const,
+                        label: 'Transformado',
+                        icon: 'construct-outline' as const,
+                      },
+                    ]
+                  ).map((opt) => {
+                    const active = editKind === opt.value;
+                    return (
+                      <Pressable
+                        key={opt.value}
+                        onPress={() => !isSubmitting && setEditKind(opt.value)}
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          paddingVertical: 12,
+                          borderRadius: 14,
+                          borderWidth: 1.5,
+                          borderColor: active ? palette.ink : text.onPaper.subtle,
+                          backgroundColor: active ? palette.ink : 'transparent',
+                        }}
+                      >
+                        <Ionicons
+                          name={opt.icon}
+                          size={18}
+                          color={active ? surface.paper : text.onPaper.muted}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: '600',
+                            color: active ? surface.paper : text.onPaper.primary,
+                          }}
+                        >
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
                 <VrittPaperInput
                   label="Nombre"
                   value={editName}
@@ -384,6 +438,7 @@ export default function MaterialDetailScreen() {
                   setEditCategory(material.category ?? '');
                   setEditSku(material.sku ?? '');
                   setEditMinStock(String(Number(material.minStock)));
+                  setEditKind(material.kind ?? 'RAW');
                 },
                 disabled: isSubmitting,
               }}

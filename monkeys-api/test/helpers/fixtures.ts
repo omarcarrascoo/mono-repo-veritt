@@ -111,3 +111,74 @@ export async function setupBusinessScaffold(
     paymentMethodId,
   };
 }
+
+/**
+ * Conduce la cadena completa FAI→FCI→FID→FAF hasta dejar el FOP generado
+ * y SIN firmar. Devuelve el fopId. Útil para tests que solo quieren ejercitar
+ * el paso de firma (p.ej. rollback del AMD) sin repetir todo el flujo.
+ *
+ * Sin ventas → consumo teórico 0 → FID sin items → desviación 0.
+ */
+export async function driveChainToFOP(
+  app: INestApplication,
+  s: BusinessScaffold,
+): Promise<string> {
+  const base = `/businesses/${s.businessId}/daily-chain`;
+  const operator = api(app, s.operator.token);
+  const manager = api(app, s.manager.token);
+
+  // FAI
+  const fai = await operator
+    .post(`${base}/opening`)
+    .send({
+      locationId: s.locationId,
+      items: [{ materialId: s.materialId, countedQuantity: 50 }],
+    })
+    .expect(201);
+  await manager.post(`${base}/opening/${fai.body.id}/authorize`).expect(201);
+
+  // FCI → FID auto-generado
+  const fci = await operator
+    .post(`${base}/closing`)
+    .send({
+      locationId: s.locationId,
+      items: [{ materialId: s.materialId, countedQuantity: 50 }],
+    })
+    .expect(201);
+  await manager.post(`${base}/closing/${fci.body.id}/authorize`).expect(201);
+
+  // FID: clasificar y aprobar. El reporte arranca en PENDING_CLASSIFICATION
+  // (el FID crea un item por material del closing, con desviación 0 sin ventas).
+  // approve exige CLASSIFIED, así que SIEMPRE hay que clasificar primero.
+  const fid = await manager.get(`${base}/deviations`).expect(200);
+  const fidItems = (fid.body.items ?? []).map(
+    (i: { materialId: string }) => ({
+      materialId: i.materialId,
+      cause: 'ADJUSTMENT',
+      note: 'sin desviación (e2e)',
+    }),
+  );
+  if (fidItems.length > 0) {
+    await operator
+      .patch(`${base}/deviations/${fid.body.id}/classify`)
+      .send({ items: fidItems })
+      .expect(200);
+  }
+  await manager.post(`${base}/deviations/${fid.body.id}/approve`).expect(201);
+
+  // FAF → FOP auto-generado
+  const faf = await operator
+    .post(`${base}/reconciliation`)
+    .send({
+      cashDenominations: [{ denomination: 100, quantity: 0 }],
+      terminalTotals: [],
+      transferTotals: [],
+    })
+    .expect(201);
+  await manager
+    .post(`${base}/reconciliation/${faf.body.id}/approve`)
+    .expect(201);
+
+  const fop = await manager.get(`${base}/fop`).expect(200);
+  return fop.body.id as string;
+}

@@ -107,6 +107,7 @@ export class SalesService {
       unitPrice: number;
       totalPrice: number;
       costSnapshot: number;
+      makeToOrder: boolean;
       recipeVersionId: string | null;
       recipeItems: Array<{ materialId: string; quantity: number; wastePercent: number; unitCost: number }>;
     }> = [];
@@ -143,6 +144,7 @@ export class SalesService {
         unitPrice: item.unitPrice,
         totalPrice,
         costSnapshot,
+        makeToOrder: product.makeToOrder,
         recipeVersionId: latestRecipe?.id ?? null,
         recipeItems,
       });
@@ -227,42 +229,48 @@ export class SalesService {
           }
         }
 
-        // Create product stock movement (SALE = negative delta)
-        const currentStock = toNumber(
-          (await tx.product.findUnique({ where: { id: item.productId }, select: { currentStock: true } }))
-            ?.currentStock,
-        );
-        const newBalance = round4(currentStock - item.quantity);
-
-        const primaryLocation = await tx.inventoryLocation.findFirst({
-          where: { businessId, isPrimary: true },
-        });
-        if (!primaryLocation) {
-          throw new BadRequestException(
-            'No se encontró una ubicación primaria de inventario. Completa la configuración del negocio.',
+        // Producto "al momento" (makeToOrder): no lleva stock de terminado,
+        // así que la venta NO genera movimiento ni decremento de su stock.
+        // El consumo de insumos de la receta se refleja vía TheoreticalConsumption
+        // (arriba) y se materializa en el FCI/FID al cierre del día (candado C1).
+        if (!item.makeToOrder) {
+          // Create product stock movement (SALE = negative delta)
+          const currentStock = toNumber(
+            (await tx.product.findUnique({ where: { id: item.productId }, select: { currentStock: true } }))
+              ?.currentStock,
           );
+          const newBalance = round4(currentStock - item.quantity);
+
+          const primaryLocation = await tx.inventoryLocation.findFirst({
+            where: { businessId, isPrimary: true },
+          });
+          if (!primaryLocation) {
+            throw new BadRequestException(
+              'No se encontró una ubicación primaria de inventario. Completa la configuración del negocio.',
+            );
+          }
+
+          await tx.productStockMovement.create({
+            data: {
+              businessId,
+              productId: item.productId,
+              locationId: primaryLocation.id,
+              type: 'SALE',
+              quantityDelta: round4(-item.quantity),
+              balanceAfter: newBalance,
+              totalUnitCostSnapshot: item.costSnapshot,
+              totalCostSnapshot: round4(item.quantity * item.costSnapshot),
+              referenceType: 'Sale',
+              referenceId: sale.id,
+              createdByUserId: userId,
+            },
+          });
+
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { currentStock: { decrement: item.quantity } },
+          });
         }
-
-        await tx.productStockMovement.create({
-          data: {
-            businessId,
-            productId: item.productId,
-            locationId: primaryLocation.id,
-            type: 'SALE',
-            quantityDelta: round4(-item.quantity),
-            balanceAfter: newBalance,
-            totalUnitCostSnapshot: item.costSnapshot,
-            totalCostSnapshot: round4(item.quantity * item.costSnapshot),
-            referenceType: 'Sale',
-            referenceId: sale.id,
-            createdByUserId: userId,
-          },
-        });
-
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { currentStock: { decrement: item.quantity } },
-        });
       }
 
       // Create sale payments
@@ -363,8 +371,16 @@ export class SalesService {
       for (const item of sale.items) {
         const product = await tx.product.findUnique({
           where: { id: item.productId },
-          select: { currentStock: true },
+          select: { currentStock: true, makeToOrder: true },
         });
+
+        // Producto "al momento": la venta no decrementó su stock, así que no
+        // hay nada que revertir aquí. La limpieza de TheoreticalConsumption
+        // (paso 2, abajo) sí ocurre para todos.
+        if (product?.makeToOrder) {
+          continue;
+        }
+
         const currentStock = toNumber(product?.currentStock);
         const quantity = toNumber(item.quantity);
         const newBalance = round4(currentStock + quantity);

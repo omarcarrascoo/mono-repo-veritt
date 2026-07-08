@@ -3,11 +3,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StatusBar,
+  Text,
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { businessesApi } from '@/api/modules/businesses.api';
 import { inventoryApi } from '@/api/modules/inventory.api';
@@ -26,7 +29,7 @@ import {
 } from '@/lib/inventory-formatters';
 import type { Business } from '@/types/business.types';
 import type { Product } from '@/types/inventory.types';
-import { palette, surface } from '@/constants/design-tokens';
+import { palette, surface, text } from '@/constants/design-tokens';
 
 import { VrittLoader } from '@/components/ui/VrittLoader';
 import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
@@ -58,6 +61,7 @@ export default function ProductDetailScreen() {
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editMinStock, setEditMinStock] = useState('');
+  const [editMakeToOrder, setEditMakeToOrder] = useState(false);
 
   const loadAll = useCallback(async () => {
     if (!businessId || !productId) return;
@@ -72,6 +76,7 @@ export default function ProductDetailScreen() {
       setEditName(prodData.name);
       setEditCategory(prodData.category ?? '');
       setEditMinStock(String(Number(prodData.minStock)));
+      setEditMakeToOrder(prodData.makeToOrder ?? false);
     } catch (err) {
       notify.error(
         'No pudimos cargar el producto',
@@ -96,6 +101,8 @@ export default function ProductDetailScreen() {
         name: editName.trim(),
         category: editCategory.trim() || undefined,
         minStock: Number(editMinStock) || 0,
+        // makeToOrder solo aplica a RECIPE; para DIRECT se manda false.
+        makeToOrder: product?.type === 'RECIPE' ? editMakeToOrder : false,
       });
       notify.success('Cambios guardados', 'El producto fue actualizado.');
       setIsEditing(false);
@@ -108,7 +115,16 @@ export default function ProductDetailScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [businessId, productId, editName, editCategory, editMinStock, loadAll]);
+  }, [
+    businessId,
+    productId,
+    editName,
+    editCategory,
+    editMinStock,
+    editMakeToOrder,
+    product?.type,
+    loadAll,
+  ]);
 
   const handleToggleStatus = useCallback(() => {
     if (!businessId || !productId || !product) return;
@@ -409,6 +425,49 @@ export default function ProductDetailScreen() {
                   editable={!isSubmitting}
                   suffix={product.stockUnit}
                 />
+                {product.type === 'RECIPE' ? (
+                  <Pressable
+                    onPress={() =>
+                      !isSubmitting && setEditMakeToOrder((v) => !v)
+                    }
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <Ionicons
+                      name={
+                        editMakeToOrder ? 'checkbox' : 'square-outline'
+                      }
+                      size={24}
+                      color={
+                        editMakeToOrder ? palette.ink : text.onPaper.muted
+                      }
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: 15,
+                          fontWeight: '600',
+                          color: text.onPaper.primary,
+                        }}
+                      >
+                        Producto al momento (sin inventario)
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: text.onPaper.muted,
+                          marginTop: 2,
+                        }}
+                      >
+                        No lleva stock de terminado; al vender descuenta los
+                        insumos de la receta.
+                      </Text>
+                    </View>
+                  </Pressable>
+                ) : null}
               </View>
             </VrittInventoryCard>
 
@@ -427,6 +486,7 @@ export default function ProductDetailScreen() {
                   setEditName(product.name);
                   setEditCategory(product.category ?? '');
                   setEditMinStock(String(Number(product.minStock)));
+                  setEditMakeToOrder(product.makeToOrder ?? false);
                 },
                 disabled: isSubmitting,
               }}

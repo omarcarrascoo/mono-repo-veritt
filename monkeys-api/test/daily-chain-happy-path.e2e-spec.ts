@@ -132,11 +132,8 @@ describe('Daily chain — happy path to AMD (e2e)', () => {
     expect(verify.body.valid).toBe(true);
   });
 
-  it('rollback: si el AMD no se puede generar, la firma del FOP se revierte', () => {
-    // Requiere inducir un fallo en amdService.generateForFOP (p.ej. mock que
-    // lanza) y verificar que el FOP queda sin firmar. Se implementa en vivo
-    // porque necesita override del provider AmdService en el TestingModule.
-  });
+  // El rollback del AMD (la firma se revierte si el builder falla) vive en
+  // test/daily-chain-rollback.e2e-spec.ts (necesita override de AmdService).
 
   // Punto de extensión: sembrar una venta real para que el consumo teórico
   // sea > 0 y el FID muestre desviación. Requiere crear StaffProfile para el

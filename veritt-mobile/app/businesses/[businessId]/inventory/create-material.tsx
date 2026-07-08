@@ -2,11 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StatusBar,
+  Text,
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { businessesApi } from '@/api/modules/businesses.api';
 import { inventoryApi } from '@/api/modules/inventory.api';
@@ -16,9 +19,9 @@ import { notify } from '@/lib/notify';
 import { getApiErrorMessage } from '@/utils/error.utils';
 import { markIngredientsStepCompleted } from '@/lib/update-onboarding';
 import type { Business } from '@/types/business.types';
-import type { InventoryLocation } from '@/types/inventory.types';
+import type { InventoryLocation, MaterialKind } from '@/types/inventory.types';
 import { formatLocationType } from '@/lib/inventory-formatters';
-import { surface } from '@/constants/design-tokens';
+import { palette, surface, text } from '@/constants/design-tokens';
 
 import { VrittLoader } from '@/components/ui/VrittLoader';
 import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
@@ -62,6 +65,7 @@ export default function CreateMaterialScreen() {
 
   const [name, setName] = useState('');
   const [baseUnit, setBaseUnit] = useState('');
+  const [kind, setKind] = useState<MaterialKind>('RAW');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const category =
@@ -186,6 +190,7 @@ export default function CreateMaterialScreen() {
       const material = await inventoryApi.createMaterial(businessId, {
         name: name.trim(),
         baseUnit: baseUnit.trim(),
+        kind,
         category: category.trim() || undefined,
         sku: sku.trim() || undefined,
         reorderFrequencyDays: reorderFrequencyValue,
@@ -228,6 +233,7 @@ export default function CreateMaterialScreen() {
     businessId,
     name,
     baseUnit,
+    kind,
     category,
     sku,
     reorderFrequencyDays,
@@ -265,6 +271,59 @@ export default function CreateMaterialScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <VrittInventoryCard
+          eyebrow="Tipo de insumo"
+          description="Comprado: lo adquieres a un proveedor. Transformado: lo preparas internamente con otros insumos (carne marinada, aderezos) y puedes usarlo en recetas."
+        >
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {(
+              [
+                { value: 'RAW' as const, label: 'Comprado', icon: 'cube-outline' as const },
+                {
+                  value: 'TRANSFORMED' as const,
+                  label: 'Transformado',
+                  icon: 'construct-outline' as const,
+                },
+              ]
+            ).map((opt) => {
+              const active = kind === opt.value;
+              return (
+                <Pressable
+                  key={opt.value}
+                  onPress={() => !isSubmitting && setKind(opt.value)}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    borderWidth: 1.5,
+                    borderColor: active ? palette.ink : text.onPaper.subtle,
+                    backgroundColor: active ? palette.ink : 'transparent',
+                  }}
+                >
+                  <Ionicons
+                    name={opt.icon}
+                    size={18}
+                    color={active ? surface.paper : text.onPaper.muted}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '600',
+                      color: active ? surface.paper : text.onPaper.primary,
+                    }}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </VrittInventoryCard>
+
         <VrittInventoryCard
           eyebrow="Datos básicos"
           description="Solo el nombre y la unidad base son obligatorios. Los demás datos te ayudan a controlar mejor tu inventario."

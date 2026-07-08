@@ -1087,10 +1087,10 @@
                 "materials"
               ]
             },
-            "description": "",
+            "description": "kind: RAW (default, se compra) | TRANSFORMED (semi-elaborado interno: carne marinada, aderezos; usable en recetas).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Harina\",\n  \"baseUnit\": \"kg\",\n  \"category\": \"Secos\",\n  \"sku\": \"HAR-001\",\n  \"reorderFrequencyDays\": 7,\n  \"minStock\": 5\n}",
+              "raw": "{\n  \"name\": \"Harina\",\n  \"baseUnit\": \"kg\",\n  \"kind\": \"RAW\",\n  \"category\": \"Secos\",\n  \"sku\": \"HAR-001\",\n  \"reorderFrequencyDays\": 7,\n  \"minStock\": 5\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1144,7 +1144,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"minStock\": 10,\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"minStock\": 10,\n  \"status\": \"ACTIVE\",\n  \"kind\": \"RAW\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1330,10 +1330,10 @@
                 "products"
               ]
             },
-            "description": "type: DIRECT | RECIPE",
+            "description": "type: DIRECT | RECIPE. makeToOrder=true (solo RECIPE): producto al momento, sin stock de terminado; la venta descuenta insumos de la receta.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Pizza Margarita\",\n  \"type\": \"RECIPE\",\n  \"category\": \"Pizzas\",\n  \"stockUnit\": \"unidad\",\n  \"estimatedDailySalesVolume\": 20,\n  \"minStock\": 0\n}",
+              "raw": "{\n  \"name\": \"Pizza Margarita\",\n  \"type\": \"RECIPE\",\n  \"category\": \"Pizzas\",\n  \"stockUnit\": \"unidad\",\n  \"estimatedDailySalesVolume\": 20,\n  \"minStock\": 0,\n  \"makeToOrder\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1387,7 +1387,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"category\": \"Especiales\",\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"category\": \"Especiales\",\n  \"status\": \"ACTIVE\",\n  \"makeToOrder\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"

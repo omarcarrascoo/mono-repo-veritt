@@ -14,12 +14,23 @@ export enum InventoryAdjustmentDirectionDto {
   OUT = 'OUT',
 }
 
+export enum MaterialKindDto {
+  RAW = 'RAW',
+  TRANSFORMED = 'TRANSFORMED',
+}
+
 export class CreateMaterialDto {
   @IsString()
   name: string;
 
   @IsString()
   baseUnit: string;
+
+  // RAW (default): se compra a proveedor. TRANSFORMED: semi-elaborado
+  // producido internamente (carne marinada, aderezos), usable en recetas.
+  @IsOptional()
+  @IsEnum(MaterialKindDto)
+  kind?: MaterialKindDto;
 
   @IsOptional()
   @IsString()
@@ -48,6 +59,10 @@ export class UpdateMaterialDto {
   @IsOptional()
   @IsString()
   baseUnit?: string;
+
+  @IsOptional()
+  @IsEnum(MaterialKindDto)
+  kind?: MaterialKindDto;
 
   @IsOptional()
   @IsString()

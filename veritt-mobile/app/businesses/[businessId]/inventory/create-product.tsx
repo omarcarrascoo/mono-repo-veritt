@@ -122,6 +122,9 @@ export default function CreateProductScreen() {
   const [directCifCost, setDirectCifCost] = useState('');
   const [initialDirectStock, setInitialDirectStock] = useState('');
 
+  // Producto "al momento": se arma al vender, no lleva stock de terminado.
+  const [makeToOrder, setMakeToOrder] = useState(false);
+
   // RECIPE
   const [recipeDirectLaborCost, setRecipeDirectLaborCost] = useState('');
   const [recipeAllocatedCifCost, setRecipeAllocatedCifCost] = useState('');
@@ -387,6 +390,7 @@ export default function CreateProductScreen() {
         stockUnit: stockUnit.trim() || undefined,
         estimatedDailySalesVolume: estimatedSalesValue,
         minStock: minStockValue,
+        makeToOrder: type === 'RECIPE' ? makeToOrder : false,
       });
 
       if (salePriceValue) {
@@ -535,6 +539,46 @@ export default function CreateProductScreen() {
         showsVerticalScrollIndicator={false}
       >
         <ProductTypeSelector value={type} onChange={setType} />
+
+        {type === 'RECIPE' ? (
+          <VrittInventoryCard eyebrow="Modo de inventario">
+            <Pressable
+              onPress={() => !isSubmitting && setMakeToOrder((v) => !v)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <Ionicons
+                name={makeToOrder ? 'checkbox' : 'square-outline'}
+                size={24}
+                color={makeToOrder ? palette.ink : text.onPaper.muted}
+              />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: '600',
+                    color: text.onPaper.primary,
+                  }}
+                >
+                  Producto al momento (sin inventario)
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: text.onPaper.muted,
+                    marginTop: 2,
+                  }}
+                >
+                  Se arma al vender (ej. hamburguesa). No lleva stock de producto
+                  terminado; al vender descuenta los insumos de la receta.
+                </Text>
+              </View>
+            </Pressable>
+          </VrittInventoryCard>
+        ) : null}
 
         <VrittInventoryCard eyebrow="Datos básicos">
           <View style={{ gap: 14 }}>
@@ -758,30 +802,32 @@ export default function CreateProductScreen() {
                   </View>
                 </VrittInventoryCard>
 
-                <VrittInventoryCard
-                  eyebrow="Producción inicial (opcional)"
-                  description="Crea un primer lote de producción usando los insumos de la ubicación elegida."
-                >
-                  <View style={{ gap: 14 }}>
-                    <VrittPaperInput
-                      label="Cantidad a producir"
-                      placeholder="10"
-                      value={initialProductionQuantity}
-                      onChangeText={setInitialProductionQuantity}
-                      keyboardType="numeric"
-                      editable={!isSubmitting}
-                      suffix={stockUnit || undefined}
-                    />
-                    {locationOptions.length > 0 ? (
-                      <VrittPaperListPicker
-                        label="Ubicación de producción"
-                        options={locationOptions}
-                        value={initialLocationId}
-                        onChange={setInitialLocationId}
+                {!makeToOrder ? (
+                  <VrittInventoryCard
+                    eyebrow="Producción inicial (opcional)"
+                    description="Crea un primer lote de producción usando los insumos de la ubicación elegida."
+                  >
+                    <View style={{ gap: 14 }}>
+                      <VrittPaperInput
+                        label="Cantidad a producir"
+                        placeholder="10"
+                        value={initialProductionQuantity}
+                        onChangeText={setInitialProductionQuantity}
+                        keyboardType="numeric"
+                        editable={!isSubmitting}
+                        suffix={stockUnit || undefined}
                       />
-                    ) : null}
-                  </View>
-                </VrittInventoryCard>
+                      {locationOptions.length > 0 ? (
+                        <VrittPaperListPicker
+                          label="Ubicación de producción"
+                          options={locationOptions}
+                          value={initialLocationId}
+                          onChange={setInitialLocationId}
+                        />
+                      ) : null}
+                    </View>
+                  </VrittInventoryCard>
+                ) : null}
               </>
             )}
           </>

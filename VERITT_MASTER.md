@@ -425,31 +425,83 @@ Suite de integración backend de la cadena diaria — **11 tests en verde** (`te
 
 > **🔐 Bonus de seguridad (2026-06-15):** se removió una **credencial de producción hardcodeada** en `prisma.service.ts` (fallback con la contraseña de la DB). Ahora exige `DATABASE_URL_SESSION` o falla al arrancar. ⚠️ **ACCIÓN PENDIENTE DEL DUEÑO: rotar la contraseña de la DB en Supabase** — debe considerarse comprometida (estuvo en el repo/historial).
 
-## 🟡 Iteración 2 — Endurecer para producción (2–4 días)
+---
 
-- [ ] **Aplicar RBAC** (`@RequirePermission`) en controllers, empezando por daily-chain (separación de funciones) y finanzas (R4).
-- [ ] Filtrar módulos por rol en el móvil.
-- [ ] Limpieza frontend: borrar 5 componentes muertos · arreglar/eliminar `explore.tsx` · decidir `chat.tsx` (backend o "Próximamente").
-- [ ] Precisión decimal en móvil (formateo consistente vs `Decimal(14,4)`) (#6).
+## 🎯 Alcance de V1 = el V8.0 completo (decisión del dueño, 2026-06-16)
 
-## 🟢 Iteración 3 — Fase 6: primeros candados (1–2 semanas)
+Decisión tomada: **todos los frentes del V8.0 entran en V1**, construidos **en orden de dependencia**; la **migración de roles a R1–R6 se hace ya**. Las fases F1→F6 de abajo son ese orden. Ver el delta completo en [`GAP_V8_VS_CODE.md`](GAP_V8_VS_CODE.md).
 
-- [ ] **C3** — Recepciones vs Órdenes de compra (prereqs listos).
-- [ ] **C5** — Nómina vs turnos fichados (prereqs listos).
-- [ ] Diseñar el motor de candados como servicio post-FOP que alimenta el AMD P4 (alertas).
+**Regla de oro del orden:** cada fase construye sobre datos/estructuras que la anterior dejó listos. Construir fuera de orden = refactor doble (ej. crear features atadas a R2 antes de que R2 exista).
 
-## 🔵 Backlog posterior
+> Antes de F1 va el cierre de la **Iteración 1** (arriba): no se construye sobre una cadena/AMD sin terminar de verificar.
 
-- [ ] Candados restantes C1/C2/C4/C7 (C6 ya vive en `verify`).
-- [ ] B2 — extraer repository de inventario (1798 líneas).
-- [ ] Alertas de precio → tipo `PRICE_ALERT` dedicado.
-- [ ] Pantalla de notificaciones en móvil (backend + api ya existen).
-- [ ] Punto de equilibrio (requiere modelo de costos fijos).
-- [ ] Fase 7 — V2 (IMSS, certificación) / V3 (Veritt Data).
+---
 
-## La decisión
+## 🟡 F1 — Roles R1–R6 + RBAC aplicado (FUNDACIÓN · primero)
 
-La única bifurcación real es **qué hacer primero: (A) consolidar (Iter 0+1)** o **(B) seguir construyendo (Fase 6)**. Dado que la propuesta de valor de Veritt **es la integridad del dato**, **A es la opción coherente con la propia arquitectura**: de nada sirven 7 candados sobre datos mal calculados.
+**Por qué primero:** todo el V8.0 ata responsabilidades a roles concretos (R2 declara saldo de caja, R5 registra gastos, P6 solo R6…). Si construimos features con los roles actuales y migramos después, refactorizamos dos veces.
+
+⚠️ **No es un renombre — es un remodelado.** Hoy: `OWNER/ADMIN/SUPERVISOR/OPERATOR/VERITT_STAFF` (5). V8.0: R1 Inventario, R2 Caja, R3 POS, R4 Gerente, R5 Admin, R6 Dueño (6). El `OPERATOR` genérico se parte en R1/R2/R3.
+
+- [ ] Definir el mapeo y la migración del enum `MembershipRole` → R1–R6 (+ migración Prisma de datos existentes).
+- [ ] Actualizar los gates de servicio (`ensureManagement`, firma FOP, etc.) a la nueva matriz de roles.
+- [ ] **Aplicar RBAC**: activar `@RequirePermission` (hoy construido pero inactivo) en los controllers, empezando por daily-chain (separación de funciones) y finanzas.
+- [ ] Sincronizar contratos: `veritt-mobile/types/*`, `api/modules/*`, y regenerar Postman.
+- [ ] Frontend por **rol-flujo** ("no navegas, sigues un flujo"): pantalla según rol/momento. R2 no ve comandas, R3 superficie mínima, etc.
+- [ ] Actualizar la suite e2e a R1–R6 (los tests de acceso ya cubren separación de funciones — adaptarlos).
+
+**Criterio de salida:** los 6 roles existen, el RBAC bloquea de verdad a nivel API, y la suite e2e pasa con la nueva matriz.
+
+## 🟡 F2 — Cerrar candados base (C1 y C2 completos)
+
+**Por qué aquí:** son piezas pequeñas de alta integridad que el motor financiero (F4) va a consumir. Mejor tenerlas firmes antes.
+
+- [ ] **Saldo inicial de caja (C2):** R2 declara el efectivo inicial antes de la 1ª venta (primer botón de su dashboard). El FAF parte de ese saldo. Cierra el candado C2 (hoy incompleto).
+- [ ] **FEFO real (C1/costeo):** hoy el costeo es solo FIFO por `receivedAt`; agregar prioridad por `expiresAt` (el campo ya existe). + alertas de vencimiento.
+- [ ] Tests e2e para ambos (el harness ya existe).
+
+## 🟡 F3 — Módulos operativos que alimentan las finanzas
+
+**Por qué antes del motor:** estos generan los movimientos que M5–M8 necesitan (gastos, propinas, comida de personal impactan ER/Balance/Flujo).
+
+- [ ] **Gastos extraordinarios** (R5/R6): 18 categorías en 6 grupos, **comprobante obligatorio**, impacta M5/M7/M8 y P3/P5.
+- [ ] **Propinas y moje** (POS/R3): 3 opciones forzadas al cerrar cuenta + distribución configurable.
+- [ ] **Comida de personal** (R1): movimiento de inventario a **gasto de operación** (no a costo de ventas), costo al lote FEFO+FIFO.
+
+## 🟡 F4 — Motor financiero M1–M10 (el frente grande)
+
+**Por qué aquí:** necesita roles (acceso), candados base (datos limpios) y los módulos de F3 (movimientos completos). El AMD P2 ya tiene ER/Balance/Flujo como snapshot — esto los convierte en motor real.
+
+- [ ] Modelar lo que falta: **costos fijos**, **MOD** (nómina-a-costo desde turnos), **GIF**.
+- [ ] M1–M5: ventas/costos variables, producción, estructura de costos, **prorrateo**, punto de equilibrio + cobertura CxP.
+- [ ] M6–M9: ER diario+MTD, Balance con validación y provisión diaria de prestaciones, Flujo + proyección 30d, razones + **EBITDA** + **semáforo IMSS**.
+- [ ] **M10 — estados E/C/V + indicador de madurez** (clave de adopción: AMDs válidos desde día 1, refinando a V).
+- [ ] Conectar el motor al AMD P2 (reemplazar el snapshot por el cálculo real) + Cuentas por Pagar con línea de tiempo 90d.
+
+## 🟡 F5 — Cierres de turno + candados cruzados restantes
+
+- [ ] **FCT / RCT** (cortes de turno con hash encadenado al AMD): `Hash_AMD = SHA256(totales + Hash_RCT[1..n])`.
+- [ ] **OC como entidad rica** (C3): perfil estadístico por proveedor, clasificación auto de discrepancias.
+- [ ] Candados **C4** (costos vs resultados) y **C5** (nómina vs actividad) como verificación explícita post-FOP que alimenta P4.
+- [ ] **FTI** (transformación interna), clasificación **ABC** de inventario.
+
+## 🟡 F6 — Inteligencia y escala
+
+- [ ] **Confidence scoring** (Shadow Mode 30–60d, score por rol, vector R2-R3, escalamiento, loop). Va al final: necesita el historial de AMDs que F1–F5 producen.
+- [ ] **Módulo de inteligencia de horarios** (modo lectura sobre AMDs, ROI, restricciones).
+- [ ] **Onboarding contextual** (notas reactivas in-app).
+- [ ] Escala: **V2** (multi-ubicación, API de salida, multi-R6/societario), **V3** (red), **V4** (Red Veritt, WorkPass).
+
+## 🔵 Deuda técnica transversal (atender cuando se toque cada área)
+
+- [ ] B2 — extraer repository de inventario (`inventory.service.ts`, 1798 líneas).
+- [ ] Alertas de precio → tipo `PRICE_ALERT` dedicado (hoy usa `MATERIAL_LOW_STOCK`).
+- [ ] Limpieza frontend: 5 componentes muertos, `explore.tsx` (rompe regla HTTP), `chat.tsx` (stub), precisión decimal vs `Decimal(14,4)`.
+- [ ] Firma con **PIN/contraseña** en cada formato (trazabilidad de intención) — transversal a la cadena.
+
+## La decisión (resuelta)
+
+V1 = V8.0 completo, en el orden F1→F6 de arriba. **Roles primero** porque son la fundación; **confidence scoring al final** porque necesita los datos que todo lo demás produce. La integridad del dato sigue siendo el principio rector: cada fase deja datos verificados sobre los que la siguiente construye.
 
 ---
 

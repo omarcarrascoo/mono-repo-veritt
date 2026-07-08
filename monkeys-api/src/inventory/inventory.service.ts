@@ -389,10 +389,26 @@ export class InventoryService {
         name: true,
         minStock: true,
         currentStock: true,
+        makeToOrder: true,
       },
     });
 
     if (!product) {
+      return;
+    }
+
+    // Producto "al momento": no lleva stock de terminado, así que las alertas
+    // de stock bajo / agotado no aplican (siempre estaría en 0). Se limpian
+    // las que hubiera y no se generan nuevas.
+    if (product.makeToOrder) {
+      await this.notificationsService.resolveNotifications(
+        'PRODUCT_STOCK_LOW',
+        product.id,
+      );
+      await this.notificationsService.resolveNotifications(
+        'PRODUCT_STOCK',
+        product.id,
+      );
       return;
     }
 
@@ -1056,6 +1072,7 @@ export class InventoryService {
         businessId,
         name: dto.name,
         baseUnit: dto.baseUnit,
+        kind: dto.kind ?? 'RAW',
         category: dto.category,
         sku: dto.sku,
         reorderFrequencyDays: dto.reorderFrequencyDays,
@@ -1304,6 +1321,7 @@ export class InventoryService {
         stockUnit: dto.stockUnit ?? 'unit',
         estimatedDailySalesVolume: dto.estimatedDailySalesVolume,
         minStock: dto.minStock ?? 0,
+        makeToOrder: dto.makeToOrder ?? false,
       },
     });
 

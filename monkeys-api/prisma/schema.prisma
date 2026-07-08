@@ -98,6 +98,14 @@ enum ProductType {
   RECIPE
 }
 
+// RAW: insumo que se compra a proveedor (harina, carne cruda).
+// TRANSFORMED: insumo semi-elaborado producido internamente vía FTI
+// (carne marinada, aderezos). Puede usarse en recetas de productos.
+enum MaterialKind {
+  RAW
+  TRANSFORMED
+}
+
 enum InventoryMovementType {
   OPENING_BALANCE
   PURCHASE
@@ -288,6 +296,7 @@ model Material {
   businessId               String
   name                     String
   baseUnit                 String
+  kind                     MaterialKind               @default(RAW)
   category                 String?
   sku                      String?
   reorderFrequencyDays     Int?
@@ -396,6 +405,7 @@ model Product {
   stockUnit                 String                     @default("unit")
   estimatedDailySalesVolume Decimal?                   @db.Decimal(14, 4)
   minStock                  Decimal                    @default(0) @db.Decimal(14, 4)
+  makeToOrder               Boolean                    @default(false)
   currentStock              Decimal                    @default(0) @db.Decimal(14, 4)
   currentSalePrice          Decimal                    @default(0) @db.Decimal(14, 4)
   currentMaterialCost       Decimal                    @default(0) @db.Decimal(14, 4)
