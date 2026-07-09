@@ -89,6 +89,8 @@ export interface Material {
   createdAt?: string
   updatedAt?: string
   lots?: MaterialLot[]
+  // Receta de producción activa (FTI), si el insumo es TRANSFORMED.
+  productionRecipes?: MaterialRecipe[]
 }
 
 export interface MaterialStockMovement {
@@ -392,4 +394,58 @@ export interface InventoryTransferResult {
   transferredQuantity: DecimalValue
   fromLocationId: string
   toLocationId: string
+}
+
+// ── FTI (Formato de Transformación Interna) ──
+
+export interface MaterialRecipeItem {
+  id: string
+  materialRecipeId: string
+  materialId: string
+  quantity: DecimalValue
+  wastePercent: DecimalValue
+  material?: Material
+}
+
+export interface MaterialRecipe {
+  id: string
+  businessId: string
+  outputMaterialId: string
+  versionNumber: number
+  outputQuantity: DecimalValue
+  effectiveFrom: string
+  note?: string | null
+  createdAt?: string
+  items: MaterialRecipeItem[]
+}
+
+export interface MaterialRecipeItemDto {
+  materialId: string
+  quantity: number
+  wastePercent?: number
+}
+
+export interface CreateMaterialRecipeDto {
+  outputQuantity?: number
+  effectiveFrom?: string
+  note?: string
+  items: MaterialRecipeItemDto[]
+}
+
+export interface ProduceTransformedMaterialDto {
+  locationId?: string
+  materialRecipeId?: string
+  quantity: number
+  producedAt?: string
+  expiresAt?: string
+  note?: string
+}
+
+export interface ProduceTransformedMaterialResult {
+  referenceId: string
+  materialRecipeId: string
+  producedQuantity: DecimalValue
+  unitCost: DecimalValue
+  totalCost: DecimalValue
+  lot: MaterialLot
 }

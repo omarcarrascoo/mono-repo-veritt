@@ -28,7 +28,7 @@ import {
   toInventoryNumber,
 } from '@/lib/inventory-formatters';
 import type { Business } from '@/types/business.types';
-import type { Product } from '@/types/inventory.types';
+import type { Material, Product } from '@/types/inventory.types';
 import { palette, surface, text } from '@/constants/design-tokens';
 
 import { VrittLoader } from '@/components/ui/VrittLoader';
@@ -54,6 +54,7 @@ export default function ProductDetailScreen() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [business, setBusiness] = useState<Business | null>(null);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,12 +68,14 @@ export default function ProductDetailScreen() {
     if (!businessId || !productId) return;
     try {
       setIsLoading(true);
-      const [bizData, prodData] = await Promise.all([
+      const [bizData, prodData, materialData] = await Promise.all([
         businessesApi.getById(businessId),
         inventoryApi.getProduct(businessId, productId),
+        inventoryApi.listMaterials(businessId).catch(() => []),
       ]);
       setBusiness(bizData);
       setProduct(prodData);
+      setMaterials(materialData);
       setEditName(prodData.name);
       setEditCategory(prodData.category ?? '');
       setEditMinStock(String(Number(prodData.minStock)));
@@ -92,6 +95,11 @@ export default function ProductDetailScreen() {
   }, [loadAll]);
 
   const onBack = useCallback(() => router.back(), []);
+
+  const materialNameById = useCallback(
+    (id: string) => materials.find((m) => m.id === id)?.name ?? 'Insumo',
+    [materials],
+  );
 
   const handleSave = useCallback(async () => {
     if (!businessId || !productId || !editName.trim()) return;
@@ -382,6 +390,88 @@ export default function ProductDetailScreen() {
                 ]}
               />
             </VrittInventoryCard>
+
+            {canManageInventory && product.type === 'RECIPE' ? (
+              <VrittInventoryCard
+                eyebrow="Receta"
+                description="Insumos que consume cada unidad. Al vender, se descuentan del inventario."
+              >
+                <View style={{ gap: 12 }}>
+                  {product.recipeVersions?.[0]?.items?.length ? (
+                    <View style={{ gap: 8 }}>
+                      {product.recipeVersions[0].items.map((it) => (
+                        <View
+                          key={it.id ?? it.materialId}
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: text.onPaper.primary,
+                              fontSize: 14,
+                              flex: 1,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {materialNameById(it.materialId)}
+                          </Text>
+                          <Text
+                            style={{
+                              color: text.onPaper.muted,
+                              fontSize: 14,
+                              fontWeight: '600',
+                            }}
+                          >
+                            {Number(it.quantity)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ color: text.onPaper.muted, fontSize: 13 }}>
+                      Este producto aún no tiene receta.
+                    </Text>
+                  )}
+                  <Pressable
+                    onPress={() =>
+                      router.push(
+                        `/businesses/${businessId}/inventory/products/${productId}/recipe`,
+                      )
+                    }
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      paddingVertical: 12,
+                      borderRadius: 14,
+                      borderWidth: 1.5,
+                      borderColor: palette.ink,
+                    }}
+                  >
+                    <Ionicons
+                      name="git-branch-outline"
+                      size={16}
+                      color={palette.ink}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: '600',
+                        color: palette.ink,
+                      }}
+                    >
+                      {product.recipeVersions?.[0]?.items?.length
+                        ? 'Editar receta'
+                        : 'Definir receta'}
+                    </Text>
+                  </Pressable>
+                </View>
+              </VrittInventoryCard>
+            ) : null}
 
             {canManageInventory ? (
               <VrittInventoryFooterActions

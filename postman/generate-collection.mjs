@@ -516,6 +516,31 @@ collection.item.push({
         note: 'Reabasto',
       },
     }),
+    // FTI — insumo transformado (solo kind=TRANSFORMED)
+    req({
+      name: 'Define material recipe (FTI)',
+      method: 'POST',
+      path: [...B, 'inventory', 'materials', '{{materialId}}', 'recipe'],
+      body: {
+        outputQuantity: 1,
+        note: 'Receta de producción de la carne marinada',
+        items: [
+          { materialId: '{{materialId}}', quantity: 1, wastePercent: 0 },
+        ],
+      },
+      desc: 'Receta de producción de un insumo TRANSFORMED: qué crudos consume. Cambia el materialId de items por un insumo RAW real.',
+    }),
+    req({
+      name: 'Produce transformed material (FTI)',
+      method: 'POST',
+      path: [...B, 'inventory', 'materials', '{{materialId}}', 'production'],
+      body: {
+        locationId: '{{locationId}}',
+        quantity: 3,
+        note: 'Producción de carne marinada',
+      },
+      desc: 'Produce el insumo transformado consumiendo los crudos de su receta activa (FIFO). Crea un lote con costo real.',
+    }),
     // products
     req({
       name: 'List products',

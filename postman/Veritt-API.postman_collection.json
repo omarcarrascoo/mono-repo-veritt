@@ -1266,6 +1266,80 @@
           "response": []
         },
         {
+          "name": "Define material recipe (FTI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials/{{materialId}}/recipe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "materials",
+                "{{materialId}}",
+                "recipe"
+              ]
+            },
+            "description": "Receta de producción de un insumo TRANSFORMED: qué crudos consume. Cambia el materialId de items por un insumo RAW real.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outputQuantity\": 1,\n  \"note\": \"Receta de producción de la carne marinada\",\n  \"items\": [\n    {\n      \"materialId\": \"{{materialId}}\",\n      \"quantity\": 1,\n      \"wastePercent\": 0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Produce transformed material (FTI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/inventory/materials/{{materialId}}/production",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "inventory",
+                "materials",
+                "{{materialId}}",
+                "production"
+              ]
+            },
+            "description": "Produce el insumo transformado consumiendo los crudos de su receta activa (FIFO). Crea un lote con costo real.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{locationId}}\",\n  \"quantity\": 3,\n  \"note\": \"Producción de carne marinada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "List products",
           "request": {
             "method": "GET",

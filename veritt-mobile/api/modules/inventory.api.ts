@@ -7,13 +7,17 @@ import {
   CreateInventoryLocationDto,
   CreateMaterialDto,
   CreateProductDto,
+  CreateMaterialRecipeDto,
   CreateProductRecipeVersionDto,
   CreateProductionBatchDto,
   InventoryTransferResult,
   InventoryLocation,
   Material,
   MaterialLot,
+  MaterialRecipe,
   MaterialStockTransactionResult,
+  ProduceTransformedMaterialDto,
+  ProduceTransformedMaterialResult,
   Product,
   ProductLot,
   ProductManualCostHistory,
@@ -135,6 +139,32 @@ export const inventoryApi = {
   ): Promise<InventoryTransferResult> {
     const { data } = await apiClient.post<InventoryTransferResult>(
       `/businesses/${businessId}/inventory/materials/${materialId}/transfers`,
+      payload
+    )
+    return data
+  },
+
+  // FTI: define la receta de producción de un insumo transformado.
+  async createMaterialRecipe(
+    businessId: string,
+    materialId: string,
+    payload: CreateMaterialRecipeDto
+  ): Promise<MaterialRecipe> {
+    const { data } = await apiClient.post<MaterialRecipe>(
+      `/businesses/${businessId}/inventory/materials/${materialId}/recipe`,
+      payload
+    )
+    return data
+  },
+
+  // FTI: produce el insumo transformado consumiendo los crudos de su receta.
+  async produceTransformedMaterial(
+    businessId: string,
+    materialId: string,
+    payload: ProduceTransformedMaterialDto
+  ): Promise<ProduceTransformedMaterialResult> {
+    const { data } = await apiClient.post<ProduceTransformedMaterialResult>(
+      `/businesses/${businessId}/inventory/materials/${materialId}/production`,
       payload
     )
     return data
