@@ -16,7 +16,7 @@ import { MANAGER_ROLES } from '@/types/business.types';
 import { useBusinessStore } from '@/store/business.store';
 import { getApiErrorMessage } from '@/utils/error.utils';
 import { notify } from '@/lib/notify';
-import { formatPercent } from '@/lib/format';
+import { formatMoney, formatPercent } from '@/lib/format';
 import {
   getDailyChainMoment,
   getOperationalDateLabel,
@@ -300,6 +300,45 @@ function buildStepUi(
   }
 }
 
+// ── Caja · saldo inicial (candado C2) ─────────────────────────────────
+// No es un eslabón de la cadena de inventario (FAI→…→FOP): es un requisito
+// paralelo del encargado de caja, "antes de la 1ª venta". Por eso se muestra
+// como tarjeta aparte, no como un 6º paso.
+
+type CashUiState = 'done' | 'active' | 'pending';
+
+interface CashUi {
+  state: CashUiState;
+  statusLabel: string;
+  balanceLabel: string | null;
+  route: string;
+}
+
+function buildCashUi(businessId: string, chain: DailyChainStatus): CashUi {
+  const route = `/businesses/${businessId}/daily-chain/cash-opening`;
+
+  if (chain.cashOpening) {
+    return {
+      state: 'done',
+      statusLabel: 'Caja abierta',
+      balanceLabel: formatMoney(Number(chain.cashOpening.openingBalance)),
+      route,
+    };
+  }
+
+  // El backend sólo bloquea ventas sin saldo cuando la cadena está activa
+  // (FAI autorizado). Antes de eso, declararlo es opcional pero permitido.
+  const chainActive = chain.fai?.status === 'AUTHORIZED';
+  return {
+    state: chainActive ? 'active' : 'pending',
+    statusLabel: chainActive
+      ? 'Requerido · declara para vender'
+      : 'Declara el saldo de apertura',
+    balanceLabel: null,
+    route,
+  };
+}
+
 // ── Pantalla principal ────────────────────────────────────────────────
 
 export default function DailyChainScreen() {
@@ -394,6 +433,13 @@ export default function DailyChainScreen() {
         {moment ? <Hero moment={moment} onCta={onCta} /> : null}
 
         <Semaphore steps={semaphore} />
+
+        {chain ? (
+          <CashCard
+            ui={buildCashUi(businessId!, chain)}
+            onPress={onStepPress}
+          />
+        ) : null}
 
         {chain ? (
           <View style={{ gap: 10 }}>
@@ -499,6 +545,127 @@ const AmdCard = React.memo(function AmdCard({
         </Text>
       </View>
       <Ionicons name="arrow-forward" size={18} color={palette.paper} />
+    </TouchableOpacity>
+  );
+});
+
+// ── Caja card (saldo inicial · candado C2) ────────────────────────────
+
+const CashCard = React.memo(function CashCard({
+  ui,
+  onPress,
+}: {
+  ui: CashUi;
+  onPress: (route: string) => void;
+}) {
+  const handlePress = useCallback(() => onPress(ui.route), [onPress, ui.route]);
+  const isDone = ui.state === 'done';
+  const isActive = ui.state === 'active';
+
+  const markBg = isDone
+    ? palette.forest
+    : isActive
+    ? palette.ink
+    : withAlpha(palette.ink, 0.04);
+  const markBorder = isDone || isActive ? null : hairline.onPaper;
+  const codeInk = isDone
+    ? palette.forestDeep
+    : isActive
+    ? palette.ink
+    : text.onPaper.muted;
+  const statusInk = isDone
+    ? palette.forestDeep
+    : isActive
+    ? palette.amberDeep
+    : text.onPaper.muted;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.88}
+      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel="Abrir saldo inicial de caja"
+      style={{
+        backgroundColor: surface.card,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: hairline.onPaper,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+      }}
+    >
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: markBg,
+          borderWidth: markBorder ? 1.5 : 0,
+          borderColor: markBorder ?? 'transparent',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {isDone ? (
+          <Ionicons name="checkmark" size={20} color={palette.paper} />
+        ) : (
+          <Ionicons
+            name="wallet-outline"
+            size={18}
+            color={isActive ? palette.paper : text.onPaper.muted}
+          />
+        )}
+      </View>
+
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: codeInk,
+            fontSize: 10,
+            fontWeight: '900',
+            letterSpacing: 1.4,
+            textTransform: 'uppercase',
+          }}
+        >
+          Caja · saldo inicial
+        </Text>
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{
+            color: text.onPaper.primary,
+            fontSize: 15,
+            fontWeight: '800',
+            letterSpacing: -0.3,
+            marginTop: 2,
+          }}
+        >
+          {ui.balanceLabel ?? 'Apertura de caja'}
+        </Text>
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{
+            color: statusInk,
+            fontSize: 12,
+            fontWeight: '700',
+            marginTop: 4,
+            letterSpacing: -0.1,
+          }}
+        >
+          {ui.statusLabel}
+        </Text>
+      </View>
+
+      <Ionicons
+        name="chevron-forward"
+        size={16}
+        color={text.onPaper.subtle}
+      />
     </TouchableOpacity>
   );
 });

@@ -47,6 +47,7 @@ import {
 } from '@/components/inventory/VrittPaperInput';
 import { VrittInventoryFooterActions } from '@/components/inventory/VrittInventoryFooterActions';
 import { VrittInventoryEmpty } from '@/components/inventory/VrittInventoryEmpty';
+import { VrittInfoBanner } from '@/components/ui/VrittInfoBanner';
 import {
   VrittReceiptItemCard,
   type ReceiptItemValue,
@@ -73,7 +74,10 @@ export default function CreateReceiptScreen() {
   const role = useBusinessStore((s) =>
     businessId ? s.getRole(businessId) : null,
   );
-  const canCreate = permissions.canManageSupply(role);
+  const canCreate = permissions.canReceiveInventory(role);
+  // Los gerentes (R5/R6) mueven stock al instante y pueden vincular una OC.
+  // El resto (R1) genera un borrador PENDING_REVIEW sin tocar inventario.
+  const isManager = permissions.canManageSupply(role);
 
   // Gate: si llegan sin permisos por deep-link, regresar.
   useEffect(() => {
@@ -101,9 +105,13 @@ export default function CreateReceiptScreen() {
       if (!businessId) return;
       try {
         setIsLoadingData(true);
+        // Sólo gerencia puede listar OCs (FINANCE_MANAGE); para R1 el endpoint
+        // devuelve 403, así que ni lo pedimos: registran recepción directa.
         const [businessData, poData, locData, matData] = await Promise.all([
           businessesApi.getById(businessId),
-          purchaseOrdersApi.list(businessId, { status: 'SENT' }),
+          isManager
+            ? purchaseOrdersApi.list(businessId, { status: 'SENT' })
+            : Promise.resolve([] as PurchaseOrder[]),
           inventoryApi.listLocations(businessId),
           inventoryApi.listMaterials(businessId),
         ]);
@@ -126,7 +134,7 @@ export default function CreateReceiptScreen() {
     return () => {
       cancelled = true;
     };
-  }, [businessId]);
+  }, [businessId, isManager]);
 
   // ── Derivados ─────────────────────────────────────────────────────
 
@@ -271,13 +279,23 @@ export default function CreateReceiptScreen() {
 
     try {
       setIsSubmitting(true);
-      await receiptsApi.create(businessId, {
+      const created = await receiptsApi.create(businessId, {
         purchaseOrderId: purchaseOrderId || undefined,
         locationId,
         notes: notes.trim() || undefined,
         items: validItems,
       });
-      notify.success('Recepción registrada', 'El stock fue actualizado.');
+      // El backend decide: gerencia mueve stock (COMPLETED); el resto deja un
+      // borrador (PENDING_REVIEW) que un gerente debe autorizar. El mensaje
+      // debe reflejar lo que realmente pasó, no prometer stock que no entró.
+      if (created.status === 'PENDING_REVIEW') {
+        notify.success(
+          'Recepción enviada a revisión',
+          'Un gerente debe autorizarla. El stock aún no entra al inventario.',
+        );
+      } else {
+        notify.success('Recepción registrada', 'El stock fue actualizado.');
+      }
       router.replace(`/businesses/${businessId}/receipts`);
     } catch (err) {
       notify.error(
@@ -377,17 +395,26 @@ export default function CreateReceiptScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <VrittInventoryCard
-          eyebrow="Origen"
-          description="Vincula la recepción a una orden de compra o regístrala como recepción directa si llegó sin OC."
-        >
-          <VrittPaperListPicker
-            label="Orden de compra"
-            options={poOptions}
-            value={purchaseOrderId}
-            onChange={setPurchaseOrderId}
+        {isManager ? (
+          <VrittInventoryCard
+            eyebrow="Origen"
+            description="Vincula la recepción a una orden de compra o regístrala como recepción directa si llegó sin OC."
+          >
+            <VrittPaperListPicker
+              label="Orden de compra"
+              options={poOptions}
+              value={purchaseOrderId}
+              onChange={setPurchaseOrderId}
+            />
+          </VrittInventoryCard>
+        ) : (
+          <VrittInfoBanner
+            tone="review"
+            icon="hourglass-outline"
+            title="Recepción para autorizar"
+            description="Registra lo que llegó físicamente. Un gerente revisará los costos y autorizará la entrada al inventario."
           />
-        </VrittInventoryCard>
+        )}
 
         <VrittInventoryCard eyebrow="Destino">
           <VrittPaperListPicker
@@ -521,8 +548,8 @@ export default function CreateReceiptScreen() {
 
         <VrittInventoryFooterActions
           primary={{
-            label: 'Registrar recepción',
-            icon: 'archive-outline',
+            label: isManager ? 'Registrar recepción' : 'Enviar a revisión',
+            icon: isManager ? 'archive-outline' : 'hourglass-outline',
             onPress: handleCreate,
             loading: isSubmitting,
             disabled: filledItemCount === 0 || !locationId,

@@ -3,6 +3,7 @@
 export interface DailyChainStatus {
   operationalDate: string
   fai: { id: string; status: DailyOpeningStatus; locationId: string } | null
+  cashOpening: { id: string; openingBalance: number } | null
   fci: { id: string; status: DailyClosingStatus; locationId: string } | null
   fid: { id: string; status: DeviationReportStatus; totalDeviationValueMXN: number } | null
   faf: { id: string; status: ReconciliationStatus; difference: number } | null
@@ -115,6 +116,24 @@ export interface DeviationItem {
 
 export interface ClassifyDeviationDto {
   items: Array<{ materialId: string; cause: DeviationCause; note?: string }>
+}
+
+// ── Saldo inicial de caja (candado C2) ──
+
+export interface DailyCashOpening {
+  id: string
+  businessId: string
+  operationalDate: string
+  openingBalance: number
+  notes?: string | null
+  declaredByUserId: string
+  createdAt: string
+}
+
+export interface CreateCashOpeningDto {
+  date?: string
+  openingBalance: number
+  notes?: string
 }
 
 // ── FAF ──

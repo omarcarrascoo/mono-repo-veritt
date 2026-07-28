@@ -1,4 +1,10 @@
-export type ReceiptStatus = 'COMPLETED' | 'PARTIAL' | 'CANCELLED'
+export type ReceiptStatus =
+  | 'DRAFT'
+  | 'PENDING_REVIEW'
+  | 'COMPLETED'
+  | 'PARTIAL'
+  | 'CANCELLED'
+  | 'REJECTED'
 
 export interface ReceiptItem {
   id: string
@@ -22,6 +28,11 @@ export interface Receipt {
   cancellationComment?: string | null
   cancelledByUserId?: string | null
   cancelledAt?: string | null
+  authorizedByUserId?: string | null
+  authorizedAt?: string | null
+  rejectedByUserId?: string | null
+  rejectedAt?: string | null
+  rejectionReason?: string | null
   receivedAt?: string
   createdAt?: string
   updatedAt?: string

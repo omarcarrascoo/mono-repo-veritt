@@ -219,7 +219,23 @@ export default function CreateSaleScreen() {
       setIsReviewOpen(false);
       router.replace(`/businesses/${businessId}/sales`);
     } catch (err) {
-      Alert.alert('Error', getApiErrorMessage(err, 'No pudimos registrar la venta.'));
+      const message = getApiErrorMessage(err, 'No pudimos registrar la venta.');
+      // Candado C2: si la venta se bloquea por falta de saldo inicial de caja,
+      // ofrecemos ir a declararlo en vez de un callejón sin salida.
+      if (message.toLowerCase().includes('saldo inicial')) {
+        Alert.alert('Falta el saldo inicial de caja', message, [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Declarar saldo',
+            onPress: () =>
+              router.push(
+                `/businesses/${businessId}/daily-chain/cash-opening` as never,
+              ),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', message);
+      }
     } finally {
       setIsSubmitting(false);
     }

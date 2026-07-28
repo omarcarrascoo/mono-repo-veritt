@@ -15,6 +15,7 @@ import { CreateOpeningDto } from './dto/create-opening.dto';
 import { CreateClosingDto } from './dto/create-closing.dto';
 import { ClassifyDeviationDto } from './dto/classify-deviation.dto';
 import { CreateReconciliationDto } from './dto/create-reconciliation.dto';
+import { CreateCashOpeningDto } from './dto/create-cash-opening.dto';
 
 @Controller('businesses/:businessId/daily-chain')
 @UseGuards(JwtAuthGuard)
@@ -139,6 +140,26 @@ export class DailyChainController {
     @CurrentUser() user: { id: string },
   ) {
     return this.service.approveDeviations(businessId, reportId, user.id);
+  }
+
+  // ── Saldo inicial de caja (C2) ──
+
+  @Get('cash-opening')
+  getCashOpening(
+    @Param('businessId') businessId: string,
+    @CurrentUser() user: { id: string },
+    @Query('date') date?: string,
+  ) {
+    return this.service.getCashOpening(businessId, user.id, date);
+  }
+
+  @Post('cash-opening')
+  declareCashOpening(
+    @Param('businessId') businessId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateCashOpeningDto,
+  ) {
+    return this.service.declareCashOpening(businessId, user.id, dto);
   }
 
   // ── FAF (Reconciliation) ──

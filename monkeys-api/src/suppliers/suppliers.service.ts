@@ -6,14 +6,21 @@ import {
 import { SuppliersRepository } from './suppliers.repository';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 @Injectable()
 export class SuppliersService {
-  constructor(private readonly suppliersRepository: SuppliersRepository) {}
+  constructor(
+    private readonly suppliersRepository: SuppliersRepository,
+    private readonly permissions: PermissionService,
+  ) {}
 
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.suppliersRepository.findMembership(businessId, userId);
-    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !membership ||
+      !(await this.permissions.can(businessId, membership.role, 'FINANCE_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return membership;

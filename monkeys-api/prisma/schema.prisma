@@ -12,12 +12,16 @@ enum UserStatus {
   PENDING
 }
 
+// Roles R1–R6 (V8.0): posiciones en la cadena operativa, no niveles de acceso.
+// Ver ROLES_R1_R6_MATRIX.md para la matriz de permisos completa.
 enum MembershipRole {
-  OWNER
-  ADMIN
-  SUPERVISOR
-  OPERATOR
-  VERITT_STAFF
+  R1_INVENTORY // Encargado de Inventario (FAI/FCI, recepciones)
+  R2_CASH      // Encargado de Caja (saldo inicial, FAF)
+  R3_POS       // Operador POS (comandar)
+  R4_MANAGER   // Gerente de Turno (autoriza, firma FOP)
+  R5_ADMIN     // Administrador (facturas, CxP, OCs, gastos)
+  R6_OWNER     // Dueño (acceso total)
+  VERITT_STAFF // Staff interno Veritt (bypass, soporte)
 }
 
 enum MembershipStatus {
@@ -253,6 +257,7 @@ model Business {
   processTemplates         ProcessTemplate[]
   shiftLogs                ShiftLog[]
   rolePermissions          RolePermission[]
+  roleCapabilities         BusinessRoleCapability[]
   paymentMethods           PaymentMethod[]
   sales                    Sale[]
   suppliers                Supplier[]
@@ -262,6 +267,7 @@ model Business {
   dailyOpenings            DailyInventoryOpening[]
   dailyClosings            DailyInventoryClosing[]
   deviationReports         DailyDeviationReport[]
+  cashOpenings             DailyCashOpening[]
   cashReconciliations      DailyCashReconciliation[]
   dailyOperationCloses     DailyOperationClose[]
   dailyMasterArchives      DailyMasterArchive[]
@@ -317,6 +323,10 @@ model Material {
   openingItems             DailyInventoryOpeningItem[]
   closingItems             DailyInventoryClosingItem[]
   deviationItems           DeviationItem[]
+  // FTI: recetas de producción donde ESTE material (TRANSFORMED) es la salida.
+  productionRecipes        MaterialRecipe[]           @relation("MaterialRecipeOutput")
+  // FTI: renglones de receta donde este material entra como insumo (crudo).
+  materialRecipeItems      MaterialRecipeItem[]
 
   @@unique([businessId, name])
   @@unique([businessId, sku])
@@ -493,6 +503,42 @@ model ProductRecipeVersionItem {
   material        Material             @relation(fields: [materialId], references: [id])
 
   @@unique([recipeVersionId, materialId])
+}
+
+// FTI (Formato de Transformación Interna) — receta de producción de un insumo
+// TRANSFORMED (carne marinada, aderezos). Versionada, igual que las recetas de
+// producto. `outputMaterial` es el semi-elaborado que se produce; los `items`
+// son los insumos crudos que se consumen. `outputQuantity` = cuánto rinde la
+// receta base (ej. la receta produce 1 kg de marinada).
+model MaterialRecipe {
+  id               String               @id @default(uuid())
+  businessId       String
+  outputMaterialId String
+  versionNumber    Int
+  outputQuantity   Decimal              @default(1) @db.Decimal(14, 4)
+  effectiveFrom    DateTime             @default(now())
+  materialCost     Decimal              @default(0) @db.Decimal(14, 4)
+  note             String?
+  createdByUserId  String?
+  createdAt        DateTime             @default(now())
+  outputMaterial   Material             @relation("MaterialRecipeOutput", fields: [outputMaterialId], references: [id])
+  items            MaterialRecipeItem[]
+
+  @@unique([outputMaterialId, versionNumber])
+  @@index([businessId, outputMaterialId, effectiveFrom])
+}
+
+model MaterialRecipeItem {
+  id               String         @id @default(uuid())
+  materialRecipeId String
+  materialId       String
+  quantity         Decimal        @db.Decimal(14, 4)
+  wastePercent     Decimal        @default(0) @db.Decimal(7, 4)
+  createdAt        DateTime       @default(now())
+  materialRecipe   MaterialRecipe @relation(fields: [materialRecipeId], references: [id])
+  material         Material       @relation(fields: [materialId], references: [id])
+
+  @@unique([materialRecipeId, materialId])
 }
 
 model ProductLot {
@@ -861,6 +907,26 @@ model RolePermission {
   process  ProcessTemplate? @relation(fields: [processId], references: [id])
 
   @@unique([businessId, role, areaId, processId, permission])
+  @@index([businessId, role])
+}
+
+// Override de capacidades por negocio (permisos configurables por R6).
+// Semántica: si un negocio tiene filas para un rol, esas filas DEFINEN sus
+// capacidades (reemplazan el default de capabilities.ts para ese rol). Si no
+// hay filas para un rol, se usa el default en código. `allowed=false` permite
+// revocar una capacidad explícitamente. Ver PermissionService.
+model BusinessRoleCapability {
+  id         String         @id @default(uuid())
+  businessId String
+  role       MembershipRole
+  capability String
+  allowed    Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, role, capability])
   @@index([businessId, role])
 }
 
@@ -1320,6 +1386,27 @@ model DeviationItem {
   material Material              @relation(fields: [materialId], references: [id])
 
   @@unique([reportId, materialId])
+}
+
+// 4.4.0 Saldo inicial de caja — candado C2
+// R2 declara el efectivo con el que abre la caja ANTES de la 1ª venta. El FAF
+// parte de este saldo (efectivo esperado = saldo inicial + ventas en efectivo).
+// Uno por negocio y fecha operativa.
+
+model DailyCashOpening {
+  id                 String   @id @default(uuid())
+  businessId         String
+  operationalDate    DateTime @db.Date
+  openingBalance     Decimal  @db.Decimal(14, 4)
+  notes              String?
+  declaredByUserId   String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, operationalDate])
+  @@index([businessId, operationalDate])
 }
 
 // 4.4 FAF — Arqueo Financiero

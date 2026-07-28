@@ -32,4 +32,22 @@ export const receiptsApi = {
     );
     return data;
   },
+
+  // Candado C3: un gerente autoriza un borrador (PENDING_REVIEW) y recién ahí
+  // entra el stock, se crean lotes/costos y se cierra la orden de compra.
+  async authorize(businessId: string, receiptId: string): Promise<Receipt> {
+    const { data } = await apiClient.post<Receipt>(
+      `/businesses/${businessId}/receipts/${receiptId}/authorize`
+    );
+    return data;
+  },
+
+  // Rechaza un borrador con motivo — se marca REJECTED sin mover inventario.
+  async reject(businessId: string, receiptId: string, reason: string): Promise<Receipt> {
+    const { data } = await apiClient.post<Receipt>(
+      `/businesses/${businessId}/receipts/${receiptId}/reject`,
+      { reason }
+    );
+    return data;
+  },
 };

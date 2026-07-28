@@ -26,12 +26,14 @@ interface ToneSkin {
 
 export function receiptToneSkin(tone: ReceiptTone): ToneSkin {
   switch (tone) {
+    case 'rejected':
     case 'cancelled':
       return {
         bg: withAlpha(palette.danger, 0.16),
         ink: palette.dangerDeep,
         dot: palette.danger,
       };
+    case 'pending':
     case 'partial':
       return {
         bg: withAlpha(palette.amber, 0.16),

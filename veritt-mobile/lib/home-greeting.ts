@@ -13,14 +13,18 @@ export function getGreeting(date: Date = new Date()): string {
 
 export function getRoleLabel(role?: string | null): string {
   switch (role) {
-    case 'OWNER':
+    case 'R1_INVENTORY':
+      return 'Encargado de Inventario';
+    case 'R2_CASH':
+      return 'Encargado de Caja';
+    case 'R3_POS':
+      return 'Operador POS';
+    case 'R4_MANAGER':
+      return 'Gerente de Turno';
+    case 'R5_ADMIN':
+      return 'Administrador';
+    case 'R6_OWNER':
       return 'Dueño';
-    case 'ADMIN':
-      return 'Admin';
-    case 'SUPERVISOR':
-      return 'Supervisor';
-    case 'OPERATOR':
-      return 'Operador';
     case 'VERITT_STAFF':
       return 'Veritt';
     default:

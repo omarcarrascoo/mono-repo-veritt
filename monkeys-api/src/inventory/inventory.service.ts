@@ -8,6 +8,7 @@ import {
 import {
   InventoryLotSourceType,
   InventoryMovementType,
+  MaterialKind,
   NotificationType,
   Prisma,
   ProductType,
@@ -16,6 +17,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../database/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LotCostingService } from './lot-costing.service';
+import { PermissionService } from '../common/services/permission.service';
 import {
   CreateInventoryLocationDto,
   UpdateInventoryLocationDto,
@@ -23,6 +25,8 @@ import {
 import {
   AdjustMaterialStockDto,
   CreateMaterialDto,
+  CreateMaterialRecipeDto,
+  ProduceTransformedMaterialDto,
   InventoryAdjustmentDirectionDto,
   ReceiveMaterialLotDto,
   TransferMaterialStockDto,
@@ -84,6 +88,7 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly lotCosting: LotCostingService,
+    private readonly permissions: PermissionService,
   ) {}
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
@@ -98,10 +103,27 @@ export class InventoryService {
     return membership;
   }
 
+  // Operaciones de inventario (crear/editar material y producto, recibir lote,
+  // FTI, transferencias). Capacidad INVENTORY_WRITE (configurable por negocio).
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
 
-    if (!['OWNER', 'ADMIN'].includes(membership.role)) {
+    if (
+      !(await this.permissions.can(businessId, membership.role, 'INVENTORY_WRITE'))
+    ) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+
+    return membership;
+  }
+
+  // Ajuste de stock a mano, precios y costos. Capacidad INVENTORY_ADJUST.
+  private async ensureFinanceAccess(businessId: string, userId: string) {
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+
+    if (
+      !(await this.permissions.can(businessId, membership.role, 'INVENTORY_ADJUST'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -1041,6 +1063,13 @@ export class InventoryService {
           },
           orderBy: [{ receivedAt: 'asc' }, { createdAt: 'asc' }],
         },
+        // Receta de producción activa (última versión) para precargar la
+        // edición del FTI. Solo aplica a insumos TRANSFORMED.
+        productionRecipes: {
+          include: { items: true },
+          orderBy: [{ effectiveFrom: 'desc' }, { versionNumber: 'desc' }],
+          take: 1,
+        },
       },
     });
 
@@ -1147,7 +1176,7 @@ export class InventoryService {
     userId: string,
     dto: AdjustMaterialStockDto,
   ) {
-    await this.ensureManagementAccess(businessId, userId);
+    await this.ensureFinanceAccess(businessId, userId);
 
     const [material, location, currency] = await Promise.all([
       this.getMaterialOrThrow(businessId, materialId),
@@ -1265,6 +1294,174 @@ export class InventoryService {
     return result;
   }
 
+  // ── FTI (Formato de Transformación Interna) ──
+
+  private ensureTransformedMaterial(kind: MaterialKind) {
+    if (kind !== 'TRANSFORMED') {
+      throw new BadRequestException(
+        'Solo los insumos transformados pueden tener receta de producción o transformarse.',
+      );
+    }
+  }
+
+  // Define/actualiza la receta de producción de un insumo TRANSFORMED
+  // (qué insumos crudos consume). Versionada, igual que las recetas de producto.
+  async createMaterialRecipe(
+    businessId: string,
+    materialId: string,
+    userId: string,
+    dto: CreateMaterialRecipeDto,
+  ) {
+    await this.ensureManagementAccess(businessId, userId);
+    const material = await this.getMaterialOrThrow(businessId, materialId);
+    this.ensureTransformedMaterial(material.kind);
+
+    // Validar que cada insumo de la receta exista y no sea el propio output.
+    for (const item of dto.items) {
+      if (item.materialId === materialId) {
+        throw new BadRequestException(
+          'Un insumo transformado no puede incluirse a sí mismo en su receta.',
+        );
+      }
+      await this.getMaterialOrThrow(businessId, item.materialId);
+    }
+
+    const lastVersion = await this.prisma.materialRecipe.findFirst({
+      where: { outputMaterialId: materialId },
+      orderBy: { versionNumber: 'desc' },
+      select: { versionNumber: true },
+    });
+    const versionNumber = (lastVersion?.versionNumber ?? 0) + 1;
+
+    return this.prisma.materialRecipe.create({
+      data: {
+        businessId,
+        outputMaterialId: materialId,
+        versionNumber,
+        outputQuantity: round4(dto.outputQuantity ?? 1),
+        effectiveFrom: toDate(dto.effectiveFrom) ?? new Date(),
+        note: dto.note,
+        createdByUserId: userId,
+        items: {
+          create: dto.items.map((item) => ({
+            materialId: item.materialId,
+            quantity: round4(item.quantity),
+            wastePercent: round4(item.wastePercent ?? 0),
+          })),
+        },
+      },
+      include: { items: true },
+    });
+  }
+
+  // Ejecuta la transformación: produce `quantity` del insumo transformado
+  // consumiendo los crudos de su receta activa por FIFO (bloquea oversell) y
+  // crea un lote del transformado con el costo real de lo consumido.
+  async produceTransformedMaterial(
+    businessId: string,
+    materialId: string,
+    userId: string,
+    dto: ProduceTransformedMaterialDto,
+  ) {
+    await this.ensureManagementAccess(businessId, userId);
+
+    const [material, location, currency] = await Promise.all([
+      this.getMaterialOrThrow(businessId, materialId),
+      this.resolveLocation(businessId, dto.locationId),
+      this.getBusinessCurrency(businessId),
+    ]);
+
+    this.ensureTransformedMaterial(material.kind);
+
+    const recipe = dto.materialRecipeId
+      ? await this.prisma.materialRecipe.findFirst({
+          where: {
+            id: dto.materialRecipeId,
+            businessId,
+            outputMaterialId: materialId,
+          },
+          include: { items: true },
+        })
+      : await this.prisma.materialRecipe.findFirst({
+          where: { businessId, outputMaterialId: materialId },
+          orderBy: [{ effectiveFrom: 'desc' }, { versionNumber: 'desc' }],
+          include: { items: true },
+        });
+
+    if (!recipe) {
+      throw new BadRequestException(
+        'Este insumo transformado no tiene una receta de producción definida.',
+      );
+    }
+
+    const outputQuantity = toNumber(recipe.outputQuantity) || 1;
+    // Cuántas "recetas base" representa la cantidad pedida (ej. receta rinde 1kg,
+    // pido 3kg → factor 3).
+    const batchFactor = round4(dto.quantity / outputQuantity);
+
+    const referenceId = randomUUID();
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      let materialCostTotal = 0;
+
+      for (const item of recipe.items) {
+        const requiredQuantity = round4(
+          batchFactor *
+            toNumber(item.quantity) *
+            (1 + toNumber(item.wastePercent) / 100),
+        );
+
+        const consumption = await this.consumeMaterialStock(tx, {
+          businessId,
+          materialId: item.materialId,
+          locationId: location.id,
+          quantity: requiredQuantity,
+          currency,
+          movementType: InventoryMovementType.PRODUCTION_OUT,
+          note: dto.note ?? `Transformación interna: ${material.name}`,
+          referenceType: 'MATERIAL_TRANSFORMATION',
+          referenceId,
+          createdByUserId: userId,
+        });
+
+        materialCostTotal += consumption.totalCost;
+      }
+
+      const unitCost =
+        dto.quantity > 0 ? round4(materialCostTotal / dto.quantity) : 0;
+
+      const lot = await this.createMaterialInboundLot(tx, {
+        businessId,
+        materialId: material.id,
+        locationId: location.id,
+        quantity: round4(dto.quantity),
+        unitCost,
+        currency,
+        sourceType: InventoryLotSourceType.PRODUCTION,
+        receivedAt: toDate(dto.producedAt),
+        expiresAt: toDate(dto.expiresAt),
+        note: dto.note,
+        referenceType: 'MATERIAL_TRANSFORMATION',
+        referenceId,
+        createdByUserId: userId,
+        movementType: InventoryMovementType.PRODUCTION_IN,
+      });
+
+      return {
+        referenceId,
+        materialRecipeId: recipe.id,
+        producedQuantity: round4(dto.quantity),
+        unitCost,
+        totalCost: round4(materialCostTotal),
+        lot,
+      };
+    });
+
+    await this.syncMaterialAlert(material.id);
+
+    return result;
+  }
+
   async listProducts(businessId: string, userId: string) {
     await this.ensureBusinessAccess(businessId, userId);
 
@@ -1355,7 +1552,7 @@ export class InventoryService {
     userId: string,
     dto: AddProductPriceDto,
   ) {
-    await this.ensureManagementAccess(businessId, userId);
+    await this.ensureFinanceAccess(businessId, userId);
     await this.getProductOrThrow(businessId, productId);
 
     const currency = await this.getBusinessCurrency(businessId);
@@ -1390,7 +1587,7 @@ export class InventoryService {
     userId: string,
     dto: AddProductManualCostDto,
   ) {
-    await this.ensureManagementAccess(businessId, userId);
+    await this.ensureFinanceAccess(businessId, userId);
     const product = await this.getProductOrThrow(businessId, productId);
     this.ensureDirectProduct(product.type);
 
@@ -1687,7 +1884,7 @@ export class InventoryService {
     userId: string,
     dto: AdjustProductStockDto,
   ) {
-    await this.ensureManagementAccess(businessId, userId);
+    await this.ensureFinanceAccess(businessId, userId);
 
     const [product, location, currency] = await Promise.all([
       this.getProductOrThrow(businessId, productId),

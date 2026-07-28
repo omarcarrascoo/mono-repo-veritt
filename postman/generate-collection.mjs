@@ -303,8 +303,8 @@ collection.item.push({
       name: 'Add member',
       method: 'POST',
       path: [...B, 'members'],
-      body: { email: 'empleado@veritt.com', role: 'OPERATOR' },
-      desc: 'Roles: OWNER | ADMIN | SUPERVISOR | OPERATOR | VERITT_STAFF',
+      body: { email: 'empleado@veritt.com', role: 'R3_POS' },
+      desc: 'Roles: R1_INVENTORY | R2_CASH | R3_POS | R4_MANAGER | R5_ADMIN | R6_OWNER | VERITT_STAFF',
       capture: 'memberId',
       captureFrom: 'id',
     }),
@@ -312,7 +312,7 @@ collection.item.push({
       name: 'Update member',
       method: 'PATCH',
       path: [...B, 'members', '{{memberId}}'],
-      body: { role: 'ADMIN', status: 'ACTIVE' },
+      body: { role: 'R5_ADMIN', status: 'ACTIVE' },
       desc: 'status: ACTIVE | INVITED | INACTIVE',
     }),
   ],
@@ -515,6 +515,31 @@ collection.item.push({
         quantity: 10,
         note: 'Reabasto',
       },
+    }),
+    // FTI — insumo transformado (solo kind=TRANSFORMED)
+    req({
+      name: 'Define material recipe (FTI)',
+      method: 'POST',
+      path: [...B, 'inventory', 'materials', '{{materialId}}', 'recipe'],
+      body: {
+        outputQuantity: 1,
+        note: 'Receta de producción de la carne marinada',
+        items: [
+          { materialId: '{{materialId}}', quantity: 1, wastePercent: 0 },
+        ],
+      },
+      desc: 'Receta de producción de un insumo TRANSFORMED: qué crudos consume. Cambia el materialId de items por un insumo RAW real.',
+    }),
+    req({
+      name: 'Produce transformed material (FTI)',
+      method: 'POST',
+      path: [...B, 'inventory', 'materials', '{{materialId}}', 'production'],
+      body: {
+        locationId: '{{locationId}}',
+        quantity: 3,
+        note: 'Producción de carne marinada',
+      },
+      desc: 'Produce el insumo transformado consumiendo los crudos de su receta activa (FIFO). Crea un lote con costo real.',
     }),
     // products
     req({
@@ -1116,7 +1141,7 @@ collection.item.push({
           {
             name: 'Encender equipos',
             stepOrder: 1,
-            requiredRole: 'OPERATOR',
+            requiredRole: 'R3_POS',
             assignedAreaId: '{{areaId}}',
           },
           {
@@ -1126,7 +1151,7 @@ collection.item.push({
           },
         ],
       },
-      desc: 'requiredRole: OWNER|ADMIN|SUPERVISOR|OPERATOR|VERITT_STAFF',
+      desc: 'requiredRole: R1_INVENTORY|R2_CASH|R3_POS|R4_MANAGER|R5_ADMIN|R6_OWNER|VERITT_STAFF',
       capture: 'processId',
       captureFrom: 'id',
     }),
@@ -1336,6 +1361,24 @@ collection.item.push({
       method: 'POST',
       path: [...B, 'daily-chain', 'deviations', '{{reportId}}', 'approve'],
     }),
+    // Saldo inicial de caja (candado C2)
+    req({
+      name: 'Cash opening · Get',
+      method: 'GET',
+      path: [...B, 'daily-chain', 'cash-opening'],
+      query: [{ key: 'date', value: '{{today}}', disabled: true }],
+    }),
+    req({
+      name: 'Cash opening · Declare (C2)',
+      method: 'POST',
+      path: [...B, 'daily-chain', 'cash-opening'],
+      body: {
+        date: '{{today}}',
+        openingBalance: 1000,
+        notes: 'Fondo de caja inicial',
+      },
+      desc: 'R2 declara el efectivo de apertura antes de la 1ª venta. Uno por día.',
+    }),
     // FAF
     req({
       name: 'FAF · Get reconciliation',
@@ -1475,6 +1518,42 @@ collection.item.push({
       name: 'Mark as read',
       method: 'PATCH',
       path: ['notifications', '{{notificationId}}', 'read'],
+    }),
+  ],
+});
+
+// ---------------------------------------------------------------------------
+// 22. Permissions (config de permisos por negocio — solo R6)
+// ---------------------------------------------------------------------------
+collection.item.push({
+  name: '21 · Permissions (config por negocio)',
+  item: [
+    req({
+      name: 'Get permission matrix',
+      method: 'GET',
+      path: [...B, 'permissions'],
+      desc: 'Matriz efectiva del negocio: por cada rol, qué capacidades tiene (default vs override). Solo R6/dueño.',
+    }),
+    req({
+      name: 'Set role capabilities',
+      method: 'PUT',
+      path: [...B, 'permissions', 'R4_MANAGER'],
+      body: {
+        capabilities: [
+          'POS_OPERATE',
+          'FINANCE_VIEW',
+          'CHAIN_AUTHORIZE',
+          'CHAIN_SIGN',
+          'CONFIG_MANAGE',
+        ],
+      },
+      desc: 'Override completo de las capacidades de un rol (:role en la URL). Capacidades: INVENTORY_WRITE, INVENTORY_ADJUST, POS_OPERATE, FINANCE_VIEW, CHAIN_AUTHORIZE, CHAIN_SIGN, FINANCE_MANAGE, STAFF_MANAGE, CONFIG_MANAGE, MEMBER_ADMIN.',
+    }),
+    req({
+      name: 'Reset role to default',
+      method: 'DELETE',
+      path: [...B, 'permissions', 'R4_MANAGER'],
+      desc: 'Borra el override del rol → vuelve al default en código.',
     }),
   ],
 });

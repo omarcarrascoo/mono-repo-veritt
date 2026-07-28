@@ -10,6 +10,9 @@ import { StaffRepository } from './staff.repository';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { PayrollService } from '../payroll/payroll.service';
+import { ROLES } from '../common/constants/roles.constants';
+import { PermissionService } from '../common/services/permission.service';
+import { MembershipRole } from '@prisma/client';
 import { assertValidFirstPaymentDate, parseDateKey } from '../payroll/utils/payroll-schedule.utils';
 
 @Injectable()
@@ -17,6 +20,7 @@ export class StaffService {
   constructor(
     private readonly staffRepository: StaffRepository,
     private readonly payrollService: PayrollService,
+    private readonly permissions: PermissionService,
   ) {}
 
   private validateCompensation(compensation?: CreateStaffDto['compensation']) {
@@ -32,19 +36,25 @@ export class StaffService {
     assertValidFirstPaymentDate(compensation.payrollFrequency, firstPaymentDate);
   }
 
-  private mapAccessLevelToRole(level: string): string {
-    const map: Record<string, string> = {
-      ADMIN: 'ADMIN',
-      SUPERVISOR: 'SUPERVISOR',
-      OPERATOR: 'OPERATOR',
+  // Traduce el nivel de acceso al sistema del staff (NONE/OPERATOR/SUPERVISOR/
+  // ADMIN) al rol de membresía R1–R6. OPERATOR cae en R3 (POS) como transición;
+  // se reasigna a R1/R2 manualmente según la función real.
+  private mapAccessLevelToRole(level: string): MembershipRole {
+    const map: Record<string, MembershipRole> = {
+      ADMIN: ROLES.R5_ADMIN,
+      SUPERVISOR: ROLES.R4_MANAGER,
+      OPERATOR: ROLES.R3_POS,
     };
-    return map[level] || 'OPERATOR';
+    return map[level] ?? ROLES.R3_POS;
   }
 
   async create(businessId: string, userId: string, dto: CreateStaffDto) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !membership ||
+      !(await this.permissions.can(businessId, membership.role, 'STAFF_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -97,7 +107,10 @@ export class StaffService {
   async list(businessId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !membership ||
+      !(await this.permissions.can(businessId, membership.role, 'STAFF_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -107,7 +120,10 @@ export class StaffService {
   async getById(businessId: string, staffId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !membership ||
+      !(await this.permissions.can(businessId, membership.role, 'STAFF_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -123,7 +139,10 @@ export class StaffService {
   async update(businessId: string, staffId: string, userId: string, dto: UpdateStaffDto) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !membership ||
+      !(await this.permissions.can(businessId, membership.role, 'STAFF_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -147,7 +166,10 @@ export class StaffService {
   async listCompensationHistory(businessId: string, staffId: string, userId: string) {
     const membership = await this.staffRepository.findMembership(businessId, userId);
 
-    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !membership ||
+      !(await this.permissions.can(businessId, membership.role, 'STAFF_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 

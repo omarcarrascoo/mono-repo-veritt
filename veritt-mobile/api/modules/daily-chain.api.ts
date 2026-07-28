@@ -7,6 +7,8 @@ import {
   CreateClosingDto,
   DailyDeviationReport,
   ClassifyDeviationDto,
+  DailyCashOpening,
+  CreateCashOpeningDto,
   DailyCashReconciliation,
   CreateReconciliationDto,
   DailyOperationClose,
@@ -82,6 +84,18 @@ export const dailyChainApi = {
 
   async approveDeviations(businessId: string, reportId: string): Promise<DailyDeviationReport> {
     const { data } = await apiClient.post<DailyDeviationReport>(`${base(businessId)}/deviations/${reportId}/approve`)
+    return data
+  },
+
+  // Saldo inicial de caja (candado C2)
+  async getCashOpening(businessId: string, date?: string): Promise<DailyCashOpening | null> {
+    const params = date ? { date } : undefined
+    const { data } = await apiClient.get<DailyCashOpening | null>(`${base(businessId)}/cash-opening`, { params })
+    return data
+  },
+
+  async declareCashOpening(businessId: string, dto: CreateCashOpeningDto): Promise<DailyCashOpening> {
+    const { data } = await apiClient.post<DailyCashOpening>(`${base(businessId)}/cash-opening`, dto)
     return data
   },
 

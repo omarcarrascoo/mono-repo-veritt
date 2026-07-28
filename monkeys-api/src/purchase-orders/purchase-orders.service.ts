@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PurchaseOrdersRepository } from './purchase-orders.repository';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -15,11 +16,17 @@ const round4 = (value: number) => Number(value.toFixed(4));
 
 @Injectable()
 export class PurchaseOrdersService {
-  constructor(private readonly poRepository: PurchaseOrdersRepository) {}
+  constructor(
+    private readonly poRepository: PurchaseOrdersRepository,
+    private readonly permissions: PermissionService,
+  ) {}
 
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.poRepository.findMembership(businessId, userId);
-    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !membership ||
+      !(await this.permissions.can(businessId, membership.role, 'FINANCE_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return membership;

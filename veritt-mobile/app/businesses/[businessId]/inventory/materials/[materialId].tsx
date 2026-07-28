@@ -27,7 +27,7 @@ import {
 } from '@/lib/inventory-formatters';
 import type { Business } from '@/types/business.types';
 import type { Material, MaterialKind } from '@/types/inventory.types';
-import { palette, surface, text } from '@/constants/design-tokens';
+import { hairline, palette, surface, text } from '@/constants/design-tokens';
 
 import { VrittLoader } from '@/components/ui/VrittLoader';
 import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
@@ -51,6 +51,7 @@ export default function MaterialDetailScreen() {
 
   const [material, setMaterial] = useState<Material | null>(null);
   const [business, setBusiness] = useState<Business | null>(null);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,17 +61,21 @@ export default function MaterialDetailScreen() {
   const [editSku, setEditSku] = useState('');
   const [editMinStock, setEditMinStock] = useState('');
   const [editKind, setEditKind] = useState<MaterialKind>('RAW');
+  const [produceQty, setProduceQty] = useState('');
+  const [isProducing, setIsProducing] = useState(false);
 
   const loadAll = useCallback(async () => {
     if (!businessId || !materialId) return;
     try {
       setIsLoading(true);
-      const [bizData, matData] = await Promise.all([
+      const [bizData, matData, materialData] = await Promise.all([
         businessesApi.getById(businessId),
         inventoryApi.getMaterial(businessId, materialId),
+        inventoryApi.listMaterials(businessId).catch(() => []),
       ]);
       setBusiness(bizData);
       setMaterial(matData);
+      setMaterials(materialData);
       setEditName(matData.name);
       setEditCategory(matData.category ?? '');
       setEditSku(matData.sku ?? '');
@@ -91,6 +96,13 @@ export default function MaterialDetailScreen() {
   }, [loadAll]);
 
   const onBack = useCallback(() => router.back(), []);
+
+  const materialNameById = useCallback(
+    (id: string) => materials.find((m) => m.id === id)?.name ?? 'Insumo',
+    [materials],
+  );
+
+  const hasRecipe = Boolean(material?.productionRecipes?.[0]?.items?.length);
 
   const handleSave = useCallback(async () => {
     if (!businessId || !materialId || !editName.trim()) return;
@@ -161,6 +173,41 @@ export default function MaterialDetailScreen() {
       ],
     );
   }, [businessId, materialId, material, loadAll]);
+
+  const handleProduce = useCallback(async () => {
+    if (!businessId || !materialId) return;
+    const qty = Number(produceQty);
+    if (!qty || qty <= 0) {
+      notify.error('Cantidad inválida', 'Indica cuánto vas a producir.');
+      return;
+    }
+    try {
+      setIsProducing(true);
+      const result = await inventoryApi.produceTransformedMaterial(
+        businessId,
+        materialId,
+        { quantity: qty },
+      );
+      notify.success(
+        'Producción registrada',
+        `Se produjeron ${qty} ${material?.baseUnit ?? ''} (costo unitario ${formatInventoryCurrency(
+          result.unitCost,
+        )}).`,
+      );
+      setProduceQty('');
+      loadAll();
+    } catch (err) {
+      notify.error(
+        'No pudimos producir',
+        getApiErrorMessage(
+          err,
+          'Verifica que haya receta de producción y stock de insumos suficiente.',
+        ),
+      );
+    } finally {
+      setIsProducing(false);
+    }
+  }, [businessId, materialId, produceQty, material?.baseUnit, loadAll]);
 
   const health = useMemo(
     () =>
@@ -316,6 +363,148 @@ export default function MaterialDetailScreen() {
                 ]}
               />
             </VrittInventoryCard>
+
+            {canManageInventory && material.kind === 'TRANSFORMED' ? (
+              <VrittInventoryCard
+                eyebrow="Producción interna (FTI)"
+                description="Registra cuánto preparaste. El sistema consume los insumos crudos de su receta (FIFO) y calcula el costo real."
+              >
+                <View style={{ gap: 12 }}>
+                  {material.productionRecipes?.[0]?.items?.length ? (
+                    <View
+                      style={{
+                        gap: 8,
+                        paddingBottom: 12,
+                        borderBottomWidth: 1,
+                        borderBottomColor: hairline.onPaper,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: text.onPaper.muted,
+                          fontSize: 10,
+                          fontWeight: '800',
+                          letterSpacing: 1.4,
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        Consume por {Number(material.productionRecipes[0].outputQuantity) || 1}{' '}
+                        {material.baseUnit}
+                      </Text>
+                      {material.productionRecipes[0].items.map((it) => (
+                        <View
+                          key={it.id ?? it.materialId}
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: text.onPaper.primary,
+                              fontSize: 14,
+                              flex: 1,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {materialNameById(it.materialId)}
+                          </Text>
+                          <Text
+                            style={{
+                              color: text.onPaper.muted,
+                              fontSize: 14,
+                              fontWeight: '600',
+                            }}
+                          >
+                            {Number(it.quantity)}
+                            {Number(it.wastePercent)
+                              ? ` (+${Number(it.wastePercent)}% merma)`
+                              : ''}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={{ color: text.onPaper.muted, fontSize: 13 }}>
+                      Aún no tiene receta. Define qué insumos consume para poder
+                      producir.
+                    </Text>
+                  )}
+                  <VrittPaperInput
+                    label={`Cantidad a producir`}
+                    placeholder="3"
+                    value={produceQty}
+                    onChangeText={setProduceQty}
+                    keyboardType="numeric"
+                    editable={!isProducing}
+                    suffix={material.baseUnit}
+                  />
+                  <Pressable
+                    onPress={handleProduce}
+                    disabled={isProducing || !produceQty.trim() || !hasRecipe}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      paddingVertical: 14,
+                      borderRadius: 14,
+                      backgroundColor:
+                        isProducing || !produceQty.trim() || !hasRecipe
+                          ? text.onPaper.subtle
+                          : palette.ink,
+                    }}
+                  >
+                    <Ionicons
+                      name="construct-outline"
+                      size={18}
+                      color={surface.paper}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        fontWeight: '600',
+                        color: surface.paper,
+                      }}
+                    >
+                      {isProducing ? 'Produciendo…' : 'Producir'}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() =>
+                      router.push(
+                        `/businesses/${businessId}/inventory/materials/${materialId}/recipe`,
+                      )
+                    }
+                    disabled={isProducing}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      paddingVertical: 6,
+                    }}
+                  >
+                    <Ionicons
+                      name="git-branch-outline"
+                      size={15}
+                      color={text.onPaper.muted}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: text.onPaper.muted,
+                      }}
+                    >
+                      Definir / editar receta de producción
+                    </Text>
+                  </Pressable>
+                </View>
+              </VrittInventoryCard>
+            ) : null}
 
             {canManageInventory ? (
               <VrittInventoryFooterActions

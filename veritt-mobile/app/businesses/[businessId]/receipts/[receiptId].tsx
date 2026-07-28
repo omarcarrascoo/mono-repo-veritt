@@ -40,6 +40,8 @@ import { VrittInventoryFooterActions } from '@/components/inventory/VrittInvento
 import { VrittReceiptStatusChip } from '@/components/receipts/VrittReceiptStatusChip';
 import { VrittReceiptItemReadRow } from '@/components/receipts/VrittReceiptItemReadRow';
 import { VrittCancelReceiptSheet } from '@/components/receipts/VrittCancelReceiptSheet';
+import { VrittRejectReceiptSheet } from '@/components/receipts/VrittRejectReceiptSheet';
+import { VrittInfoBanner } from '@/components/ui/VrittInfoBanner';
 
 function formatLongDate(dateStr?: string | null): string {
   if (!dateStr) return '—';
@@ -69,6 +71,10 @@ export default function ReceiptDetailScreen() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelComment, setCancelComment] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
 
   const loadAll = useCallback(async () => {
     if (!businessId || !receiptId) return;
@@ -129,6 +135,56 @@ export default function ReceiptDetailScreen() {
     }
   }, [businessId, receiptId, cancelReason, cancelComment]);
 
+  const handleAuthorize = useCallback(async () => {
+    if (!businessId || !receiptId) return;
+    try {
+      setIsAuthorizing(true);
+      const updated = await receiptsApi.authorize(businessId, receiptId);
+      setReceipt(updated);
+      notify.success(
+        'Recepción autorizada',
+        'El stock ya entró al inventario.',
+      );
+    } catch (err) {
+      notify.error(
+        'No pudimos autorizar la recepción',
+        getApiErrorMessage(err, 'Intenta de nuevo en unos segundos.'),
+      );
+    } finally {
+      setIsAuthorizing(false);
+    }
+  }, [businessId, receiptId]);
+
+  const handleConfirmReject = useCallback(async () => {
+    if (!businessId || !receiptId) return;
+    if (!rejectReason.trim()) {
+      notify.warning('Falta el motivo', 'El motivo del rechazo es obligatorio.');
+      return;
+    }
+    try {
+      setIsRejecting(true);
+      const updated = await receiptsApi.reject(
+        businessId,
+        receiptId,
+        rejectReason.trim(),
+      );
+      setReceipt(updated);
+      setShowRejectForm(false);
+      setRejectReason('');
+      notify.success(
+        'Recepción rechazada',
+        'No se movió inventario. Quien la registró deberá corregirla.',
+      );
+    } catch (err) {
+      notify.error(
+        'No pudimos rechazar la recepción',
+        getApiErrorMessage(err, 'Intenta de nuevo en unos segundos.'),
+      );
+    } finally {
+      setIsRejecting(false);
+    }
+  }, [businessId, receiptId, rejectReason]);
+
   const totalCost = useMemo(
     () => (receipt ? calcReceiptTotal(receipt.items ?? []) : 0),
     [receipt],
@@ -156,9 +212,9 @@ export default function ReceiptDetailScreen() {
     ? `OC-${receipt.purchaseOrder.orderNumber}`
     : 'Recepción directa';
   const heroTone =
-    receipt.status === 'CANCELLED'
+    receipt.status === 'CANCELLED' || receipt.status === 'REJECTED'
       ? 'danger'
-      : receipt.status === 'PARTIAL'
+      : receipt.status === 'PARTIAL' || receipt.status === 'PENDING_REVIEW'
       ? 'warning'
       : 'neutral';
 
@@ -423,6 +479,63 @@ export default function ReceiptDetailScreen() {
           </View>
         ) : null}
 
+        {receipt.status === 'REJECTED' ? (
+          <View
+            style={{
+              backgroundColor: surface.card,
+              borderRadius: radius.lg,
+              borderWidth: 1,
+              borderColor: 'rgba(194,84,80,0.2)',
+              padding: 26,
+              gap: 18,
+            }}
+          >
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+            >
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: palette.danger,
+                }}
+              />
+              <Text
+                style={{
+                  color: palette.dangerDeep,
+                  fontSize: 11,
+                  fontWeight: '900',
+                  letterSpacing: 1.6,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Recepción rechazada
+              </Text>
+            </View>
+            <VrittInventoryFacts
+              facts={[
+                { label: 'Motivo', value: receipt.rejectionReason ?? '—' },
+                { label: 'Fecha', value: formatLongDate(receipt.rejectedAt) },
+              ]}
+            />
+          </View>
+        ) : null}
+
+        {/* Candado C3 — borrador esperando visto bueno del gerente */}
+        {receipt.status === 'PENDING_REVIEW' ? (
+          <VrittInfoBanner
+            tone="review"
+            icon="hourglass-outline"
+            title="Pendiente de autorizar"
+            description={
+              canManage
+                ? 'Revisa los artículos y costos. Al autorizar, el stock entra al inventario; si algo no cuadra, recházala.'
+                : 'Un administrador debe revisar esta recepción. El stock no entra al inventario hasta que la autorice.'
+            }
+          />
+        ) : null}
+
         {showCancelForm ? (
           <VrittCancelReceiptSheet
             reason={cancelReason}
@@ -436,6 +549,31 @@ export default function ReceiptDetailScreen() {
               setCancelComment('');
             }}
             isSubmitting={isCancelling}
+          />
+        ) : showRejectForm ? (
+          <VrittRejectReceiptSheet
+            reason={rejectReason}
+            onReasonChange={setRejectReason}
+            onConfirm={handleConfirmReject}
+            onClose={() => {
+              setShowRejectForm(false);
+              setRejectReason('');
+            }}
+            isSubmitting={isRejecting}
+          />
+        ) : receipt.status === 'PENDING_REVIEW' && canManage ? (
+          <VrittInventoryFooterActions
+            primary={{
+              label: 'Autorizar recepción',
+              icon: 'checkmark-circle-outline',
+              onPress: handleAuthorize,
+              loading: isAuthorizing,
+            }}
+            destructive={{
+              label: 'Rechazar recepción',
+              onPress: () => setShowRejectForm(true),
+              disabled: isAuthorizing,
+            }}
           />
         ) : receipt.status === 'COMPLETED' && canManage ? (
           <VrittInventoryFooterActions

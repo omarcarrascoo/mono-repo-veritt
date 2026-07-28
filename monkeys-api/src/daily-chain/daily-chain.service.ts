@@ -13,11 +13,13 @@ import { CreateOpeningDto } from './dto/create-opening.dto';
 import { CreateClosingDto } from './dto/create-closing.dto';
 import { ClassifyDeviationDto } from './dto/classify-deviation.dto';
 import { CreateReconciliationDto } from './dto/create-reconciliation.dto';
+import { CreateCashOpeningDto } from './dto/create-cash-opening.dto';
 import {
   getOperationalDate,
   getOperationalDateRange,
   parseOperationalDate,
 } from './helpers/operational-date.helper';
+import { PermissionService } from '../common/services/permission.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -32,6 +34,7 @@ export class DailyChainService {
     private readonly lotCosting: LotCostingService,
     @Inject(forwardRef(() => AmdService))
     private readonly amdService: AmdService,
+    private readonly permissions: PermissionService,
   ) {}
 
   // ── Auth helpers ──
@@ -44,7 +47,15 @@ export class DailyChainService {
 
   private async ensureManagement(businessId: string, userId: string) {
     const m = await this.ensureAccess(businessId, userId);
-    if (!['OWNER', 'ADMIN', 'SUPERVISOR', 'VERITT_STAFF'].includes(m.role)) {
+    if (!(await this.permissions.can(businessId, m.role, 'CHAIN_AUTHORIZE'))) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+    return m;
+  }
+
+  private async ensureCashOperate(businessId: string, userId: string) {
+    const m = await this.ensureAccess(businessId, userId);
+    if (!(await this.permissions.can(businessId, m.role, 'CASH_OPERATE'))) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return m;
@@ -80,24 +91,48 @@ export class DailyChainService {
     return opening.status === 'AUTHORIZED';
   }
 
+  // ── Public: Check if the cash opening balance was declared (candado C2) ──
+  // Used by Sales: si el día operativo está abierto (FAI autorizado) pero R2
+  // no ha declarado el saldo inicial, no se puede vender. Sin cadena activa
+  // (día abierto por ausencia de FAI) no se exige — cero regresión.
+
+  async hasCashOpening(businessId: string, date?: Date): Promise<boolean> {
+    const business = await this.repo.findBusiness(businessId);
+    if (!business) return true;
+
+    const opDate = date ?? getOperationalDate(business.operationalDayCutoffHour, business.timezone);
+
+    // Solo se exige el saldo inicial cuando la cadena está activa (FAI autorizado).
+    const opening = await this.repo.findOpeningForDate(businessId, opDate);
+    if (!opening || opening.status !== 'AUTHORIZED') return true;
+
+    const cashOpening = await this.repo.findCashOpening(businessId, opDate);
+    return cashOpening !== null;
+  }
+
   // ── Chain Status ──
 
   async getStatus(businessId: string, userId: string, dateStr?: string) {
     await this.ensureAccess(businessId, userId);
     const opDate = await this.getBusinessDate(businessId, dateStr);
 
-    const [openingResult, closing, deviation, reconciliation, fop] = await Promise.all([
-      this.repo.findOpeningForDate(businessId, opDate),
-      this.repo.findClosingForDate(businessId, opDate),
-      this.repo.findDeviationReport(businessId, opDate),
-      this.repo.findReconciliation(businessId, opDate),
-      this.repo.findFOP(businessId, opDate),
-    ]);
+    const [openingResult, cashOpening, closing, deviation, reconciliation, fop] =
+      await Promise.all([
+        this.repo.findOpeningForDate(businessId, opDate),
+        this.repo.findCashOpening(businessId, opDate),
+        this.repo.findClosingForDate(businessId, opDate),
+        this.repo.findDeviationReport(businessId, opDate),
+        this.repo.findReconciliation(businessId, opDate),
+        this.repo.findFOP(businessId, opDate),
+      ]);
 
     return {
       operationalDate: opDate.toISOString().split('T')[0],
       fai: openingResult
         ? { id: openingResult.id, status: openingResult.status, locationId: openingResult.locationId }
+        : null,
+      cashOpening: cashOpening
+        ? { id: cashOpening.id, openingBalance: toNum(cashOpening.openingBalance) }
         : null,
       fci: closing
         ? { id: closing.id, status: closing.status, locationId: closing.locationId }
@@ -432,6 +467,39 @@ export class DailyChainService {
     });
   }
 
+  // ── Saldo inicial de caja (candado C2) ──
+
+  async getCashOpening(businessId: string, userId: string, dateStr?: string) {
+    await this.ensureAccess(businessId, userId);
+    const opDate = await this.getBusinessDate(businessId, dateStr);
+    return this.repo.findCashOpening(businessId, opDate);
+  }
+
+  async declareCashOpening(
+    businessId: string,
+    userId: string,
+    dto: CreateCashOpeningDto,
+  ) {
+    await this.ensureCashOperate(businessId, userId);
+    const opDate = await this.getBusinessDate(businessId, dto.date);
+
+    // Uno por día: no se puede redeclarar (candado C2 — el saldo es estructural).
+    const existing = await this.repo.findCashOpening(businessId, opDate);
+    if (existing) {
+      throw new BadRequestException(
+        'Ya se declaró el saldo inicial de caja para esta fecha',
+      );
+    }
+
+    return this.repo.createCashOpening({
+      businessId,
+      operationalDate: opDate,
+      openingBalance: round4(dto.openingBalance),
+      notes: dto.notes,
+      declaredByUserId: userId,
+    });
+  }
+
   // ── FAF (Reconciliation) ──
 
   async createReconciliation(
@@ -458,9 +526,16 @@ export class DailyChainService {
 
     // Calculate expected totals from sales (using operational date range)
     const range = await this.getDateRange(businessId, opDate);
-    const cashExpected = await this.repo.getCashExpectedTotal(businessId, range);
+    const cashSalesExpected = await this.repo.getCashExpectedTotal(businessId, range);
     const transferExpected = await this.repo.getTransferExpectedTotal(businessId, range);
     const terminalExpected = await this.repo.getSalesExpectedByPaymentMethod(businessId, range);
+
+    // Candado C2: el efectivo esperado parte del saldo inicial de caja declarado
+    // por R2. Ese float sigue físicamente en el cajón al cierre, así que el conteo
+    // por denominaciones ya lo incluye. Sin saldo declarado → 0 (cero regresión).
+    const cashOpening = await this.repo.findCashOpening(businessId, opDate);
+    const openingBalance = toNum(cashOpening?.openingBalance);
+    const cashExpected = round4(openingBalance + cashSalesExpected);
 
     // Build terminal expected map (exclude CASH and BANK_TRANSFER — handled separately)
     const terminalExpectedMap = new Map<string, number>();
@@ -698,8 +773,10 @@ export class DailyChainService {
   ) {
     const membership = await this.ensureManagement(businessId, userId);
 
-    if (!['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
-      throw new ForbiddenException('Solo OWNER o ADMIN pueden firmar el FOP');
+    if (!(await this.permissions.can(businessId, membership.role, 'CHAIN_SIGN'))) {
+      throw new ForbiddenException(
+        'Solo el gerente (R4) o superior puede firmar el FOP',
+      );
     }
 
     const fop = await this.repo.findFOPById(fopId);

@@ -10,9 +10,7 @@ import {
   PERMISSION_KEY,
   PermissionMetadata,
 } from '../decorators/require-permission.decorator';
-
-/** Roles that bypass granular permission checks */
-const BYPASS_ROLES = ['OWNER', 'VERITT_STAFF'];
+import { BYPASS_ROLES } from '../constants/roles.constants';
 
 @Injectable()
 export class PermissionGuard implements CanActivate {

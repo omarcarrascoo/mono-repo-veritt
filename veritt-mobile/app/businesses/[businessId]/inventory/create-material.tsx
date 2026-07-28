@@ -19,9 +19,16 @@ import { notify } from '@/lib/notify';
 import { getApiErrorMessage } from '@/utils/error.utils';
 import { markIngredientsStepCompleted } from '@/lib/update-onboarding';
 import type { Business } from '@/types/business.types';
-import type { InventoryLocation, MaterialKind } from '@/types/inventory.types';
-import { formatLocationType } from '@/lib/inventory-formatters';
-import { palette, surface, text } from '@/constants/design-tokens';
+import type {
+  InventoryLocation,
+  Material,
+  MaterialKind,
+} from '@/types/inventory.types';
+import {
+  formatInventoryQuantity,
+  formatLocationType,
+} from '@/lib/inventory-formatters';
+import { palette, radius, surface, text } from '@/constants/design-tokens';
 
 import { VrittLoader } from '@/components/ui/VrittLoader';
 import { VrittInventoryHeader } from '@/components/inventory/VrittInventoryHeader';
@@ -35,6 +42,21 @@ import {
   CATEGORY_CUSTOM_VALUE,
 } from '@/components/inventory/VrittCategoryPicker';
 import { VrittInventoryFooterActions } from '@/components/inventory/VrittInventoryFooterActions';
+import {
+  VrittRecipeItemCard,
+  type RecipeItemValue,
+} from '@/components/inventory/VrittRecipeItemCard';
+
+type RecipeItemForm = RecipeItemValue & { id: string };
+
+function createRecipeItem(): RecipeItemForm {
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    materialId: '',
+    quantity: '',
+    wastePercent: '',
+  };
+}
 
 function parseOptionalNumber(value: string): number | undefined {
   if (!value.trim()) return undefined;
@@ -59,6 +81,7 @@ export default function CreateMaterialScreen() {
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [locations, setLocations] = useState<InventoryLocation[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,6 +89,10 @@ export default function CreateMaterialScreen() {
   const [name, setName] = useState('');
   const [baseUnit, setBaseUnit] = useState('');
   const [kind, setKind] = useState<MaterialKind>('RAW');
+  // Receta de producción (solo cuando kind === TRANSFORMED).
+  const [recipeItems, setRecipeItems] = useState<RecipeItemForm[]>([
+    createRecipeItem(),
+  ]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const category =
@@ -85,15 +112,18 @@ export default function CreateMaterialScreen() {
       if (!businessId) return;
       try {
         setIsLoadingData(true);
-        const [businessData, locationData, categories] = await Promise.all([
-          businessesApi.getById(businessId),
-          inventoryApi.listLocations(businessId),
-          inventoryApi.listCategories(businessId).catch(() => []),
-        ]);
+        const [businessData, locationData, categories, materialData] =
+          await Promise.all([
+            businessesApi.getById(businessId),
+            inventoryApi.listLocations(businessId),
+            inventoryApi.listCategories(businessId).catch(() => []),
+            inventoryApi.listMaterials(businessId).catch(() => []),
+          ]);
         if (cancelled) return;
         setBusiness(businessData);
         setLocations(locationData);
         setExistingCategories(categories);
+        setMaterials(materialData);
         const preferred =
           locationData.find((l) => l.isPrimary) ?? locationData[0];
         if (preferred) setLocationId(preferred.id);
@@ -123,6 +153,39 @@ export default function CreateMaterialScreen() {
       })),
     [locations],
   );
+
+  // Insumos disponibles como ingredientes de la receta (los ya existentes).
+  const recipeMaterialOptions = useMemo(
+    () =>
+      materials.map((m) => ({
+        label: m.name,
+        value: m.id,
+        hint: `Disp. ${formatInventoryQuantity(m.currentStock, m.baseUnit)}`,
+        icon: 'cube-outline' as const,
+      })),
+    [materials],
+  );
+
+  const handleRecipeItemChange = useCallback(
+    (id: string, field: keyof RecipeItemValue, value: string) => {
+      setRecipeItems((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, [field]: value } : item,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleRemoveRecipeItem = useCallback((id: string) => {
+    setRecipeItems((current) =>
+      current.length === 1 ? current : current.filter((it) => it.id !== id),
+    );
+  }, []);
+
+  const handleAddRecipeItem = useCallback(() => {
+    setRecipeItems((current) => [...current, createRecipeItem()]);
+  }, []);
 
   const onBack = useCallback(() => router.back(), []);
 
@@ -207,6 +270,29 @@ export default function CreateMaterialScreen() {
         });
       }
 
+      // Insumo transformado: guardar su receta de producción si se definió.
+      if (kind === 'TRANSFORMED') {
+        const normalizedRecipe = recipeItems
+          .filter((it) => it.materialId)
+          .map((it) => ({
+            materialId: it.materialId,
+            quantity: parseOptionalNumber(it.quantity),
+            wastePercent: parseOptionalNumber(it.wastePercent) ?? 0,
+          }))
+          .filter((it) => it.quantity !== undefined && it.quantity > 0);
+
+        if (normalizedRecipe.length > 0) {
+          await inventoryApi.createMaterialRecipe(businessId, material.id, {
+            note: 'Receta de producción desde app móvil',
+            items: normalizedRecipe.map((it) => ({
+              materialId: it.materialId,
+              quantity: it.quantity!,
+              wastePercent: it.wastePercent,
+            })),
+          });
+        }
+      }
+
       await markIngredientsStepCompleted(businessId).catch(() => {});
       notify.success('Insumo creado', `${material.name} ya está en tu inventario.`);
       router.replace(`/businesses/${businessId}/inventory`);
@@ -234,6 +320,7 @@ export default function CreateMaterialScreen() {
     name,
     baseUnit,
     kind,
+    recipeItems,
     category,
     sku,
     reorderFrequencyDays,
@@ -402,6 +489,111 @@ export default function CreateMaterialScreen() {
             </View>
           </View>
         </VrittInventoryCard>
+
+        {kind === 'TRANSFORMED' ? (
+          <View style={{ gap: 12 }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-end',
+                paddingHorizontal: 4,
+                gap: 12,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    color: text.onPaper.muted,
+                    fontSize: 10,
+                    fontWeight: '800',
+                    letterSpacing: 1.8,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Receta de producción
+                </Text>
+                <Text
+                  style={{
+                    color: text.onPaper.primary,
+                    fontSize: 22,
+                    fontWeight: '800',
+                    letterSpacing: -0.8,
+                    marginTop: 4,
+                  }}
+                >
+                  {recipeItems.length === 1
+                    ? '1 insumo'
+                    : `${recipeItems.length} insumos`}
+                </Text>
+                <Text
+                  style={{
+                    color: text.onPaper.muted,
+                    fontSize: 12,
+                    marginTop: 4,
+                  }}
+                >
+                  Qué insumos se consumen al preparar 1 {baseUnit || 'unidad'}.
+                  Al producir, se descuentan del inventario por FIFO.
+                </Text>
+              </View>
+              <Pressable
+                onPress={handleAddRecipeItem}
+                disabled={isSubmitting}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: radius.pill,
+                  backgroundColor: 'rgba(11,14,18,0.05)',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Ionicons name="add" size={12} color={text.onPaper.primary} />
+                <Text
+                  style={{
+                    color: palette.ink,
+                    fontSize: 11,
+                    fontWeight: '900',
+                    letterSpacing: -0.1,
+                  }}
+                >
+                  Agregar
+                </Text>
+              </Pressable>
+            </View>
+
+            {materials.length === 0 ? (
+              <Text
+                style={{
+                  color: text.onPaper.muted,
+                  fontSize: 13,
+                  paddingHorizontal: 4,
+                }}
+              >
+                Aún no tienes insumos para usar como ingredientes. Puedes
+                guardar el insumo ahora y definir su receta más tarde.
+              </Text>
+            ) : (
+              <View style={{ gap: 10 }}>
+                {recipeItems.map((item, idx) => (
+                  <VrittRecipeItemCard
+                    key={item.id}
+                    index={idx}
+                    item={item}
+                    materialOptions={recipeMaterialOptions}
+                    canRemove={recipeItems.length > 1}
+                    onChange={(field, value) =>
+                      handleRecipeItemChange(item.id, field, value)
+                    }
+                    onRemove={() => handleRemoveRecipeItem(item.id)}
+                    disabled={isSubmitting}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        ) : null}
 
         <VrittInventoryCard
           eyebrow="Carga inicial (opcional)"

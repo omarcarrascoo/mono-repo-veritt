@@ -1,4 +1,5 @@
 import {
+  ArrayMinSize,
   IsDateString,
   IsEnum,
   IsInt,
@@ -6,7 +7,9 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { InventoryStatusDto } from './location.dto';
 
 export enum InventoryAdjustmentDirectionDto {
@@ -149,6 +152,72 @@ export class TransferMaterialStockDto {
   @IsNumber()
   @Min(0.0001)
   quantity: number;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+// ── FTI (Formato de Transformación Interna) ──
+
+export class MaterialRecipeItemDto {
+  @IsString()
+  materialId: string;
+
+  @IsNumber()
+  @Min(0.0001)
+  quantity: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  wastePercent?: number;
+}
+
+// Define la receta de producción de un insumo TRANSFORMED: qué insumos crudos
+// consume y cuánto rinde (outputQuantity).
+export class CreateMaterialRecipeDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0.0001)
+  outputQuantity?: number;
+
+  @IsOptional()
+  @IsDateString()
+  effectiveFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ValidateNested({ each: true })
+  @Type(() => MaterialRecipeItemDto)
+  @ArrayMinSize(1)
+  items: MaterialRecipeItemDto[];
+}
+
+// Ejecuta la transformación: produce `quantity` del insumo transformado,
+// consumiendo los crudos de su receta activa (FIFO) en la ubicación dada.
+export class ProduceTransformedMaterialDto {
+  @IsOptional()
+  @IsString()
+  locationId?: string;
+
+  @IsOptional()
+  @IsString()
+  materialRecipeId?: string;
+
+  @IsNumber()
+  @Min(0.0001)
+  quantity: number;
+
+  @IsOptional()
+  @IsDateString()
+  producedAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 
   @IsOptional()
   @IsString()

@@ -19,6 +19,8 @@ import {
 import {
   AdjustMaterialStockDto,
   CreateMaterialDto,
+  CreateMaterialRecipeDto,
+  ProduceTransformedMaterialDto,
   ReceiveMaterialLotDto,
   TransferMaterialStockDto,
   UpdateMaterialDto,
@@ -197,6 +199,38 @@ export class InventoryController {
     @Body() dto: TransferMaterialStockDto,
   ) {
     return this.inventoryService.transferMaterialStock(
+      businessId,
+      materialId,
+      user.id,
+      dto,
+    );
+  }
+
+  // FTI: definir la receta de producción de un insumo transformado.
+  @Post('materials/:materialId/recipe')
+  createMaterialRecipe(
+    @Param('businessId') businessId: string,
+    @Param('materialId') materialId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateMaterialRecipeDto,
+  ) {
+    return this.inventoryService.createMaterialRecipe(
+      businessId,
+      materialId,
+      user.id,
+      dto,
+    );
+  }
+
+  // FTI: producir el insumo transformado consumiendo los crudos de su receta.
+  @Post('materials/:materialId/production')
+  produceTransformedMaterial(
+    @Param('businessId') businessId: string,
+    @Param('materialId') materialId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: ProduceTransformedMaterialDto,
+  ) {
+    return this.inventoryService.produceTransformedMaterial(
       businessId,
       materialId,
       user.id,

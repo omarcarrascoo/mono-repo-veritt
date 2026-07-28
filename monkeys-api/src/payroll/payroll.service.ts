@@ -12,9 +12,9 @@ import {
 } from './utils/payroll-schedule.utils';
 import { UpdatePayrollPaymentDto } from './dto/update-payroll-payment.dto';
 import { PayrollRepository } from './payroll.repository';
+import { PermissionService } from '../common/services/permission.service';
 
 const UPCOMING_WINDOW_DAYS = 45;
-const MANAGE_PAYROLL_ROLES = ['OWNER', 'ADMIN', 'SUPERVISOR', 'VERITT_STAFF'];
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 function getSyncWindowDays(frequency: PayrollFrequency): number {
@@ -53,6 +53,7 @@ export class PayrollService {
   constructor(
     private readonly payrollRepository: PayrollRepository,
     private readonly notificationsService: NotificationsService,
+    private readonly permissions: PermissionService,
   ) {}
 
   private async maybeSyncBusinessSchedule(businessId: string) {
@@ -76,7 +77,7 @@ export class PayrollService {
   private async ensurePayrollManagementAccess(businessId: string, userId: string) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
 
-    if (!MANAGE_PAYROLL_ROLES.includes(membership.role)) {
+    if (!(await this.permissions.can(businessId, membership.role, 'STAFF_MANAGE'))) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
