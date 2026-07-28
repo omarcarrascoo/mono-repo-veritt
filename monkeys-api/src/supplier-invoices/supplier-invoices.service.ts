@@ -10,6 +10,7 @@ import { CreateSupplierInvoiceDto } from './dto/create-supplier-invoice.dto';
 import { UpdateSupplierInvoiceDto } from './dto/update-supplier-invoice.dto';
 import { DeleteSupplierInvoiceDto } from './dto/delete-supplier-invoice.dto';
 import { DisputeSupplierInvoiceDto } from './dto/dispute-supplier-invoice.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 const toNumber = (value: Prisma.Decimal | number | string | null | undefined) => {
   if (value === null || value === undefined) return 0;
@@ -19,11 +20,17 @@ const round4 = (value: number) => Number(value.toFixed(4));
 
 @Injectable()
 export class SupplierInvoicesService {
-  constructor(private readonly invoicesRepository: SupplierInvoicesRepository) {}
+  constructor(
+    private readonly invoicesRepository: SupplierInvoicesRepository,
+    private readonly permissions: PermissionService,
+  ) {}
 
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.invoicesRepository.findMembership(businessId, userId);
-    if (!membership || !['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !membership ||
+      !(await this.permissions.can(businessId, membership.role, 'FINANCE_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return membership;

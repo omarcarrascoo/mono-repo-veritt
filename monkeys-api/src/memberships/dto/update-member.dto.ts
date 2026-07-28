@@ -1,8 +1,9 @@
-import { IsIn, IsOptional } from 'class-validator';
+import { IsEnum, IsIn, IsOptional } from 'class-validator';
+import { MembershipRole } from '@prisma/client';
 
 export class UpdateMemberDto {
-  @IsOptional() @IsIn(['OWNER', 'ADMIN', 'SUPERVISOR', 'OPERATOR', 'VERITT_STAFF'])
-  role?: 'OWNER' | 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VERITT_STAFF';
+  @IsOptional() @IsEnum(MembershipRole)
+  role?: MembershipRole;
 
   @IsOptional() @IsIn(['ACTIVE', 'INVITED', 'INACTIVE'])
   status?: 'ACTIVE' | 'INVITED' | 'INACTIVE';

@@ -2,9 +2,9 @@
  * Builders de datos para los e2e de la cadena diaria.
  *
  * `setupBusinessScaffold` crea el escenario mínimo para ejercitar FAI→FOP:
- *   - owner  (rol OWNER, puede firmar el FOP)
- *   - manager(rol ADMIN, autoriza FAI/FCI/FID/FAF — distinto del operador)
- *   - operator (rol OPERATOR, crea conteos pero no autoriza)
+ *   - owner  (rol R6_OWNER, puede firmar el FOP)
+ *   - manager(rol R4_MANAGER, autoriza FAI/FCI/FID/FAF y firma FOP — distinto del operador)
+ *   - operator (rol R1_INVENTORY, crea conteos físicos pero no autoriza)
  *   - business (con location MAIN por defecto)
  *   - 1 material con lote inicial (stock + costo para FIFO)
  *   - 1 product RECIPE que consume el material (para consumo teórico)
@@ -48,14 +48,14 @@ export async function setupBusinessScaffold(
   const businessId: string = bizRes.body.id;
   const locationId: string = bizRes.body.inventoryLocations[0].id;
 
-  // Agregar manager (ADMIN) y operator (OPERATOR) — addMember requiere user existente
+  // Agregar manager (R4_MANAGER) y operator (R1_INVENTORY) — addMember requiere user existente
   await api(app, owner.token)
     .post(`/businesses/${businessId}/members`)
-    .send({ email: manager.email, role: 'ADMIN' })
+    .send({ email: manager.email, role: 'R4_MANAGER' })
     .expect(201);
   await api(app, owner.token)
     .post(`/businesses/${businessId}/members`)
-    .send({ email: operator.email, role: 'OPERATOR' })
+    .send({ email: operator.email, role: 'R1_INVENTORY' })
     .expect(201);
 
   // Material + lote inicial (50 @ $12.50)

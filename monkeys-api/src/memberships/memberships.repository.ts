@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { MembershipRole } from '@prisma/client';
 import { PrismaService } from '../database/prisma/prisma.service';
 import { UpdateMemberDto } from './dto/update-member.dto';
 
@@ -15,7 +16,20 @@ export class MembershipsRepository {
   listMembers(businessId: string) {
     return this.prisma.businessMembership.findMany({
       where: { businessId },
-      include: { user: true },
+      // No exponer el registro completo del usuario: `user: true` incluiría el
+      // passwordHash. Seleccionamos sólo campos seguros para el cliente.
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -27,7 +41,7 @@ export class MembershipsRepository {
   addMember(data: {
     businessId: string;
     userId: string;
-    role: 'OWNER' | 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VERITT_STAFF';
+    role: MembershipRole;
     invitedByUserId?: string;
   }) {
     return this.prisma.businessMembership.create({

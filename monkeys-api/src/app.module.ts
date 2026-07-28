@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './database/prisma/prisma.module';
+import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { BusinessesModule } from './businesses/businesses.module';
@@ -21,11 +22,13 @@ import { ReceiptsModule } from './receipts/receipts.module';
 import { SupplierInvoicesModule } from './supplier-invoices/supplier-invoices.module';
 import { DailyChainModule } from './daily-chain/daily-chain.module';
 import { AmdModule } from './amd/amd.module';
+import { PermissionsModule } from './permissions/permissions.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    CommonModule,
     AuthModule,
     UsersModule,
     BusinessesModule,
@@ -46,6 +49,7 @@ import { AmdModule } from './amd/amd.module';
     SupplierInvoicesModule,
     DailyChainModule,
     AmdModule,
+    PermissionsModule,
   ],
 })
 export class AppModule {}

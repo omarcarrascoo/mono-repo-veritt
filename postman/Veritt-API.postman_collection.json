@@ -490,10 +490,10 @@
                 "members"
               ]
             },
-            "description": "Roles: OWNER | ADMIN | SUPERVISOR | OPERATOR | VERITT_STAFF",
+            "description": "Roles: R1_INVENTORY | R2_CASH | R3_POS | R4_MANAGER | R5_ADMIN | R6_OWNER | VERITT_STAFF",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"empleado@veritt.com\",\n  \"role\": \"OPERATOR\"\n}",
+              "raw": "{\n  \"email\": \"empleado@veritt.com\",\n  \"role\": \"R3_POS\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -546,7 +546,7 @@
             "description": "status: ACTIVE | INVITED | INACTIVE",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"role\": \"ADMIN\",\n  \"status\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"role\": \"R5_ADMIN\",\n  \"status\": \"ACTIVE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3321,10 +3321,10 @@
                 "processes"
               ]
             },
-            "description": "requiredRole: OWNER|ADMIN|SUPERVISOR|OPERATOR|VERITT_STAFF",
+            "description": "requiredRole: R1_INVENTORY|R2_CASH|R3_POS|R4_MANAGER|R5_ADMIN|R6_OWNER|VERITT_STAFF",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Apertura de turno\",\n  \"description\": \"Checklist de apertura\",\n  \"isBlocking\": true,\n  \"steps\": [\n    {\n      \"name\": \"Encender equipos\",\n      \"stepOrder\": 1,\n      \"requiredRole\": \"OPERATOR\",\n      \"assignedAreaId\": \"{{areaId}}\"\n    },\n    {\n      \"name\": \"Verificar caja\",\n      \"description\": \"Conteo inicial\",\n      \"stepOrder\": 2\n    }\n  ]\n}",
+              "raw": "{\n  \"name\": \"Apertura de turno\",\n  \"description\": \"Checklist de apertura\",\n  \"isBlocking\": true,\n  \"steps\": [\n    {\n      \"name\": \"Encender equipos\",\n      \"stepOrder\": 1,\n      \"requiredRole\": \"R3_POS\",\n      \"assignedAreaId\": \"{{areaId}}\"\n    },\n    {\n      \"name\": \"Verificar caja\",\n      \"description\": \"Conteo inicial\",\n      \"stepOrder\": 2\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4189,6 +4189,70 @@
           "response": []
         },
         {
+          "name": "Cash opening · Get",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/daily-chain/cash-opening?date={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "daily-chain",
+                "cash-opening"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "{{today}}",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Cash opening · Declare (C2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/daily-chain/cash-opening",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "daily-chain",
+                "cash-opening"
+              ]
+            },
+            "description": "R2 declara el efectivo de apertura antes de la 1ª venta. Uno por día.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{today}}\",\n  \"openingBalance\": 1000,\n  \"notes\": \"Fondo de caja inicial\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "FAF · Get reconciliation",
           "request": {
             "method": "GET",
@@ -4644,6 +4708,87 @@
               ]
             },
             "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "21 · Permissions (config por negocio)",
+      "item": [
+        {
+          "name": "Get permission matrix",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/permissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "permissions"
+              ]
+            },
+            "description": "Matriz efectiva del negocio: por cada rol, qué capacidades tiene (default vs override). Solo R6/dueño."
+          },
+          "response": []
+        },
+        {
+          "name": "Set role capabilities",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/permissions/R4_MANAGER",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "permissions",
+                "R4_MANAGER"
+              ]
+            },
+            "description": "Override completo de las capacidades de un rol (:role en la URL). Capacidades: INVENTORY_WRITE, INVENTORY_ADJUST, POS_OPERATE, FINANCE_VIEW, CHAIN_AUTHORIZE, CHAIN_SIGN, FINANCE_MANAGE, STAFF_MANAGE, CONFIG_MANAGE, MEMBER_ADMIN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"capabilities\": [\n    \"POS_OPERATE\",\n    \"FINANCE_VIEW\",\n    \"CHAIN_AUTHORIZE\",\n    \"CHAIN_SIGN\",\n    \"CONFIG_MANAGE\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reset role to default",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/businesses/{{businessId}}/permissions/R4_MANAGER",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "businesses",
+                "{{businessId}}",
+                "permissions",
+                "R4_MANAGER"
+              ]
+            },
+            "description": "Borra el override del rol → vuelve al default en código."
           },
           "response": []
         }

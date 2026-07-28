@@ -7,9 +7,23 @@ export type BusinessType =
   | 'RETAIL'
   | 'OTHER';
 
-export type MembershipRole = 'OWNER' | 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VERITT_STAFF';
+// Roles R1–R6 (V8.0). Debe reflejar el enum MembershipRole del backend.
+export type MembershipRole =
+  | 'R1_INVENTORY'
+  | 'R2_CASH'
+  | 'R3_POS'
+  | 'R4_MANAGER'
+  | 'R5_ADMIN'
+  | 'R6_OWNER'
+  | 'VERITT_STAFF';
 
-export const MANAGER_ROLES: MembershipRole[] = ['OWNER', 'ADMIN', 'SUPERVISOR', 'VERITT_STAFF'];
+// "Managers": de R4 hacia arriba + staff interno.
+export const MANAGER_ROLES: MembershipRole[] = [
+  'R4_MANAGER',
+  'R5_ADMIN',
+  'R6_OWNER',
+  'VERITT_STAFF',
+];
 
 export interface Business {
   id: string;

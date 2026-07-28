@@ -18,10 +18,12 @@ import { useFocusEffect } from 'expo-router'
 
 const ROLE_OPTIONS = [
   { label: 'Sin rol requerido', value: '' },
-  { label: 'Dueño', value: 'OWNER' },
-  { label: 'Admin', value: 'ADMIN' },
-  { label: 'Supervisor', value: 'SUPERVISOR' },
-  { label: 'Operador', value: 'OPERATOR' },
+  { label: 'R1 · Encargado de Inventario', value: 'R1_INVENTORY' },
+  { label: 'R2 · Encargado de Caja', value: 'R2_CASH' },
+  { label: 'R3 · Operador POS', value: 'R3_POS' },
+  { label: 'R4 · Gerente de Turno', value: 'R4_MANAGER' },
+  { label: 'R5 · Administrador', value: 'R5_ADMIN' },
+  { label: 'R6 · Dueño', value: 'R6_OWNER' },
 ]
 
 export default function CreateProcessScreen() {

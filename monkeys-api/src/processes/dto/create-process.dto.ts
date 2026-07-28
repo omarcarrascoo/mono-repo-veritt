@@ -1,5 +1,6 @@
 import { IsString, IsOptional, IsBoolean, IsArray, ValidateNested, IsInt, Min, IsEnum, ArrayMinSize } from 'class-validator';
 import { Type } from 'class-transformer';
+import { MembershipRole } from '@prisma/client';
 
 export class ProcessStepDto {
   @IsString()
@@ -14,8 +15,8 @@ export class ProcessStepDto {
   stepOrder: number;
 
   @IsOptional()
-  @IsEnum(['OWNER', 'ADMIN', 'SUPERVISOR', 'OPERATOR', 'VERITT_STAFF'])
-  requiredRole?: string;
+  @IsEnum(MembershipRole)
+  requiredRole?: MembershipRole;
 
   @IsOptional()
   @IsString()

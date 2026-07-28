@@ -15,7 +15,7 @@ export class BusinessesRepository {
         memberships: {
           create: {
             userId,
-            role: 'OWNER',
+            role: 'R6_OWNER',
             status: 'ACTIVE',
             joinedAt: new Date(),
           },

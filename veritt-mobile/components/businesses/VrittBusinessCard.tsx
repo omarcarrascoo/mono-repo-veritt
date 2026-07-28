@@ -47,10 +47,12 @@ const TYPE_LABEL: Record<BusinessType, string> = {
 };
 
 const ROLE_LABEL: Record<MembershipRole, string> = {
-  OWNER: 'Dueño',
-  ADMIN: 'Admin',
-  SUPERVISOR: 'Supervisor',
-  OPERATOR: 'Operador',
+  R1_INVENTORY: 'Inventario',
+  R2_CASH: 'Caja',
+  R3_POS: 'POS',
+  R4_MANAGER: 'Gerente',
+  R5_ADMIN: 'Admin',
+  R6_OWNER: 'Dueño',
   VERITT_STAFF: 'Veritt',
 };
 

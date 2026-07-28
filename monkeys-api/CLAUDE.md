@@ -50,7 +50,7 @@ Controller (thin)  ->  Service (logic + auth)  ->  Repository (Prisma only)
 - `@CurrentUser()` returns `{ id: string, email: string }` from JWT — NOT a full user record
 - To get full profile/membership: query Prisma in the service layer
 - Business authorization: check membership in service via repository (`findMembership`)
-- Role checks: validate `membership.role` in service (OWNER, ADMIN, SUPERVISOR, OPERATOR)
+- Role checks: use the **named role groups** in `src/common/constants/roles.constants.ts` (e.g. `MANAGEMENT_ROLES`, `FINANCE_ROLES`, `INVENTORY_ROLES`, `POS_ROLES`, `CHAIN_AUTH_ROLES`, `CHAIN_SIGN_ROLES`, `MEMBER_ADMIN_ROLES`), never hardcoded role arrays. Roles are R1–R6 (see `ROLES_R1_R6_MATRIX.md`).
 
 ### DTOs & Validation
 
@@ -64,7 +64,7 @@ Controller (thin)  ->  Service (logic + auth)  ->  Repository (Prisma only)
 - **`forbidNonWhitelisted: true`** — any field NOT on the DTO returns `400`. Don't send/accept extra keys. When adding a field, add it to the DTO first.
 - **`ParseUUIDPipe`** — if a route uses it, a non-UUID `:id` (or `:businessId`) returns `400` before the service runs.
 - **`transform: true`** — query/param strings are coerced to DTO types; rely on it instead of manual `Number(...)` parsing.
-- **Business-scoped authz is in the service, never the controller.** Follow the existing pattern: `ensureBusinessAccess(businessId, userId)` (throws `ForbiddenException` if not a member) then a role gate, e.g. `if (!['OWNER','ADMIN','VERITT_STAFF'].includes(membership.role)) throw new ForbiddenException(...)`. See `sales.service.ts`.
+- **Business-scoped authz is in the service, never the controller.** Follow the existing pattern: `ensureBusinessAccess(businessId, userId)` (throws `ForbiddenException` if not a member) then a role gate using a named group, e.g. `if (!MANAGEMENT_ROLES.includes(membership.role)) throw new ForbiddenException(...)`. See `sales.service.ts`.
 - **Raw `@Body('field')` (no DTO) exists in `daily-chain` reject/sign** (`reason`, `discrepancyJustification`). These bypass class-validator — validate manually in the service. Prefer a DTO for new endpoints.
 - **`notifications` is global, not business-scoped** — `businessId` is an optional query param, not a route segment.
 
@@ -135,7 +135,7 @@ npx prisma studio          # DB browser GUI
 ## Enums Reference
 
 Key enums (defined in schema.prisma):
-- `MembershipRole`: OWNER, ADMIN, SUPERVISOR, OPERATOR, VERITT_STAFF
+- `MembershipRole`: R1_INVENTORY, R2_CASH, R3_POS, R4_MANAGER, R5_ADMIN, R6_OWNER, VERITT_STAFF (V8.0; ver `ROLES_R1_R6_MATRIX.md`). NOTA: distinto de `SystemAccessLevel` (NONE/OPERATOR/SUPERVISOR/ADMIN) del módulo staff.
 - `StaffStatus`: ACTIVE, INACTIVE
 - `PayrollFrequency`: DAILY, WEEKLY, BIWEEKLY, SEMIMONTHLY, MONTHLY
 - `PayrollPaymentStatus`: PENDING, PAID, OVERDUE, SKIPPED, CANCELED

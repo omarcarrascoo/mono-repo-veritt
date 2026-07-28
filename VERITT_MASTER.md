@@ -443,22 +443,33 @@ Decisión tomada: **todos los frentes del V8.0 entran en V1**, construidos **en 
 
 ⚠️ **No es un renombre — es un remodelado.** Hoy: `OWNER/ADMIN/SUPERVISOR/OPERATOR/VERITT_STAFF` (5). V8.0: R1 Inventario, R2 Caja, R3 POS, R4 Gerente, R5 Admin, R6 Dueño (6). El `OPERATOR` genérico se parte en R1/R2/R3.
 
-- [ ] Definir el mapeo y la migración del enum `MembershipRole` → R1–R6 (+ migración Prisma de datos existentes).
-- [ ] Actualizar los gates de servicio (`ensureManagement`, firma FOP, etc.) a la nueva matriz de roles.
-- [ ] **Aplicar RBAC**: activar `@RequirePermission` (hoy construido pero inactivo) en los controllers, empezando por daily-chain (separación de funciones) y finanzas.
-- [ ] Sincronizar contratos: `veritt-mobile/types/*`, `api/modules/*`, y regenerar Postman.
-- [ ] Frontend por **rol-flujo** ("no navegas, sigues un flujo"): pantalla según rol/momento. R2 no ve comandas, R3 superficie mínima, etc.
-- [ ] Actualizar la suite e2e a R1–R6 (los tests de acceso ya cubren separación de funciones — adaptarlos).
+- [x] Definir el mapeo y la migración del enum `MembershipRole` → R1–R6 (+ migración Prisma de datos: `20260708120000_roles_r1_r6`). Contrato en `ROLES_R1_R6_MATRIX.md`.
+- [x] Actualizar los gates de servicio a la matriz vía **grupos con nombre** (`roles.constants.ts`): ~43 checks en 23 archivos. Separación aplicada (POS create R3/R4/R6; ajuste stock/precio solo finanzas; FOP firma R4↑). Build verde.
+- [x] Sincronizar contratos: `veritt-mobile/types/*`, `lib/role-permissions.ts`, labels/pickers, y Postman regenerado. Typecheck móvil verde.
+- [x] Adaptar la suite e2e a R1–R6 (fixtures: manager=R4_MANAGER, operator=R1_INVENTORY). e2e **11/11 verdes** (corridos con Docker). Unit tests verdes; typecheck test/ verde.
+- [x] Docs actualizados (backend CLAUDE.md, este roadmap).
+- [x] **Permisos configurables por negocio** (F1.5): capa de **capabilities** con `PermissionService` (default en código + override por negocio en DB `BusinessRoleCapability`). Los ~43 gates ahora usan `permissions.can(businessId, role, capability)`. Endpoints `GET/PUT/DELETE /businesses/:id/permissions` para que R6 configure. **Test de equivalencia prueba cero regresión** (matriz default ≡ grupos originales). Build + 61 unit tests verdes.
+- [ ] **Ejecutar la suite e2e completa tras las nuevas migraciones** (roles + capabilities) contra DB de test — smoke test crítico (los gates ahora consultan DB).
+- [ ] Frontend: pantalla de config de permisos para R6 (consume `GET/PUT /permissions`). *Pendiente móvil.*
+- [ ] **Aplicar RBAC con `@RequirePermission`** en controllers. *Diferido: los servicios ya bloquean vía `can()`; el decorator es endurecimiento adicional.*
+- [ ] Frontend por **rol-flujo** completo (R2 no ve comandas, R3 superficie mínima). *Diferido: hoy los permisos gatean botones/módulos.*
 
-**Criterio de salida:** los 6 roles existen, el RBAC bloquea de verdad a nivel API, y la suite e2e pasa con la nueva matriz.
+**Criterio de salida:** ✅ los 6 roles existen, los gates usan capabilities configurables por negocio (default = comportamiento previo, probado equivalente), e2e verde. **Pendiente:** re-correr e2e tras la migración de capabilities; pantalla de config móvil; RBAC decorator y navegación rol-flujo como endurecimiento posterior.
+
+### F1.5 — Permisos configurables (arquitectura)
+
+- **`capabilities.ts`**: enum `Capability` (INVENTORY_WRITE, INVENTORY_ADJUST, POS_OPERATE, FINANCE_VIEW, CASH_OPERATE, FINANCE_MANAGE, STAFF_MANAGE, CONFIG_MANAGE, CHAIN_AUTHORIZE, CHAIN_SIGN, MEMBER_ADMIN) + `DEFAULT_ROLE_CAPABILITIES` (matriz rol→capacidades, = grupos originales). `CASH_OPERATE` → R2/R4/R5 (+bypass) cierra el candado C2.
+- **`PermissionService.can(businessId, role, capability)`**: bypass (R6/STAFF) → override del negocio si existe → default. Sin config → default → cero regresión.
+- **`BusinessRoleCapability`** (tabla): override por negocio. Si un negocio tiene filas para un rol, esas definen sus capacidades; si no, default.
+- **Endpoints** `businesses/:id/permissions` (GET matriz efectiva, PUT/:role override, DELETE/:role reset) — solo quien tiene `MEMBER_ADMIN` (R6).
 
 ## 🟡 F2 — Cerrar candados base (C1 y C2 completos)
 
 **Por qué aquí:** son piezas pequeñas de alta integridad que el motor financiero (F4) va a consumir. Mejor tenerlas firmes antes.
 
-- [ ] **Saldo inicial de caja (C2):** R2 declara el efectivo inicial antes de la 1ª venta (primer botón de su dashboard). El FAF parte de ese saldo. Cierra el candado C2 (hoy incompleto).
+- [x] **Saldo inicial de caja (C2):** R2 (capacidad `CASH_OPERATE`) declara el efectivo inicial antes de la 1ª venta vía `POST /daily-chain/cash-opening`. Con la cadena activa (FAI autorizado), una venta se bloquea si no hay saldo declarado. El FAF parte de ese saldo (`efectivo esperado = saldo inicial + ventas en efectivo`). Modelo `DailyCashOpening` (uno por negocio/fecha). e2e: `daily-chain-cash-opening.e2e-spec.ts`.
 - [ ] **FEFO real (C1/costeo):** hoy el costeo es solo FIFO por `receivedAt`; agregar prioridad por `expiresAt` (el campo ya existe). + alertas de vencimiento.
-- [ ] Tests e2e para ambos (el harness ya existe).
+- [x] Tests e2e del saldo inicial (C2). Falta el de FEFO.
 
 ## 🟡 F3 — Módulos operativos que alimentan las finanzas
 

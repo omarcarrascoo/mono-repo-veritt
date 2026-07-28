@@ -7,10 +7,14 @@ import {
 import { PaymentMethodsRepository } from './payment-methods.repository';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { UpdatePaymentMethodDto } from './dto/update-payment-method.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 @Injectable()
 export class PaymentMethodsService {
-  constructor(private readonly paymentMethodsRepository: PaymentMethodsRepository) {}
+  constructor(
+    private readonly paymentMethodsRepository: PaymentMethodsRepository,
+    private readonly permissions: PermissionService,
+  ) {}
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
     const membership = await this.paymentMethodsRepository.findMembership(businessId, userId);
@@ -22,7 +26,9 @@ export class PaymentMethodsService {
 
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
-    if (!['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (
+      !(await this.permissions.can(businessId, membership.role, 'FINANCE_MANAGE'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return membership;

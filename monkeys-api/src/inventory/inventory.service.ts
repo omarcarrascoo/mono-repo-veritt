@@ -17,6 +17,7 @@ import { randomUUID } from 'crypto';
 import { PrismaService } from '../database/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LotCostingService } from './lot-costing.service';
+import { PermissionService } from '../common/services/permission.service';
 import {
   CreateInventoryLocationDto,
   UpdateInventoryLocationDto,
@@ -87,6 +88,7 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly lotCosting: LotCostingService,
+    private readonly permissions: PermissionService,
   ) {}
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
@@ -101,10 +103,27 @@ export class InventoryService {
     return membership;
   }
 
+  // Operaciones de inventario (crear/editar material y producto, recibir lote,
+  // FTI, transferencias). Capacidad INVENTORY_WRITE (configurable por negocio).
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
 
-    if (!['OWNER', 'ADMIN'].includes(membership.role)) {
+    if (
+      !(await this.permissions.can(businessId, membership.role, 'INVENTORY_WRITE'))
+    ) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+
+    return membership;
+  }
+
+  // Ajuste de stock a mano, precios y costos. Capacidad INVENTORY_ADJUST.
+  private async ensureFinanceAccess(businessId: string, userId: string) {
+    const membership = await this.ensureBusinessAccess(businessId, userId);
+
+    if (
+      !(await this.permissions.can(businessId, membership.role, 'INVENTORY_ADJUST'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -1157,7 +1176,7 @@ export class InventoryService {
     userId: string,
     dto: AdjustMaterialStockDto,
   ) {
-    await this.ensureManagementAccess(businessId, userId);
+    await this.ensureFinanceAccess(businessId, userId);
 
     const [material, location, currency] = await Promise.all([
       this.getMaterialOrThrow(businessId, materialId),
@@ -1533,7 +1552,7 @@ export class InventoryService {
     userId: string,
     dto: AddProductPriceDto,
   ) {
-    await this.ensureManagementAccess(businessId, userId);
+    await this.ensureFinanceAccess(businessId, userId);
     await this.getProductOrThrow(businessId, productId);
 
     const currency = await this.getBusinessCurrency(businessId);
@@ -1568,7 +1587,7 @@ export class InventoryService {
     userId: string,
     dto: AddProductManualCostDto,
   ) {
-    await this.ensureManagementAccess(businessId, userId);
+    await this.ensureFinanceAccess(businessId, userId);
     const product = await this.getProductOrThrow(businessId, productId);
     this.ensureDirectProduct(product.type);
 
@@ -1865,7 +1884,7 @@ export class InventoryService {
     userId: string,
     dto: AdjustProductStockDto,
   ) {
-    await this.ensureManagementAccess(businessId, userId);
+    await this.ensureFinanceAccess(businessId, userId);
 
     const [product, location, currency] = await Promise.all([
       this.getProductOrThrow(businessId, productId),

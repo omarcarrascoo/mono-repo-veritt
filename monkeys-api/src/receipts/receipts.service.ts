@@ -11,6 +11,7 @@ import { DailyChainService } from '../daily-chain/daily-chain.service';
 import { LotCostingService } from '../inventory/lot-costing.service';
 import { CreateReceiptDto } from './dto/create-receipt.dto';
 import { CancelReceiptDto } from './dto/cancel-receipt.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -27,9 +28,8 @@ export class ReceiptsService {
     private readonly notificationsService: NotificationsService,
     private readonly dailyChainService: DailyChainService,
     private readonly lotCosting: LotCostingService,
+    private readonly permissions: PermissionService,
   ) {}
-
-  private readonly MANAGER_ROLES = ['OWNER', 'ADMIN', 'VERITT_STAFF'];
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
     const membership = await this.receiptsRepository.findMembership(businessId, userId);
@@ -41,7 +41,7 @@ export class ReceiptsService {
 
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
-    if (!this.MANAGER_ROLES.includes(membership.role)) {
+    if (!(await this.permissions.can(businessId, membership.role, 'FINANCE_MANAGE'))) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return membership;
@@ -92,7 +92,11 @@ export class ReceiptsService {
 
   async create(businessId: string, userId: string, dto: CreateReceiptDto) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
-    const isManager = this.MANAGER_ROLES.includes(membership.role);
+    const isManager = await this.permissions.can(
+      businessId,
+      membership.role,
+      'FINANCE_MANAGE',
+    );
 
     // OPERATOR/SUPERVISOR: crea borrador que requiere autorización.
     if (!isManager) {

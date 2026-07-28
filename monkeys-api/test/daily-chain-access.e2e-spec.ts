@@ -128,7 +128,7 @@ describe('Daily chain — access control & blocking (e2e)', () => {
   });
 
   describe('FOP — firma', () => {
-    it('un OPERATOR no puede firmar el FOP (403)', async () => {
+    it('un R1 (inventario) no puede firmar el FOP (403)', async () => {
       // No hay FOP todavía, pero el gate de rol corre antes de buscarlo.
       const { base } = dc(s.operator.token);
       await api(app, s.operator.token)

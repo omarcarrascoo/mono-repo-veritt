@@ -6,10 +6,14 @@ import {
 import { BusinessesRepository } from './businesses.repository';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 @Injectable()
 export class BusinessesService {
-  constructor(private readonly businessesRepository: BusinessesRepository) {}
+  constructor(
+    private readonly businessesRepository: BusinessesRepository,
+    private readonly permissions: PermissionService,
+  ) {}
 
   create(userId: string, dto: CreateBusinessDto) {
     return this.businessesRepository.createWithOwner(userId, dto);
@@ -47,7 +51,7 @@ export class BusinessesService {
     );
     if (!membership)
       throw new ForbiddenException('You do not belong to this business');
-    if (!['OWNER', 'ADMIN'].includes(membership.role))
+    if (!(await this.permissions.can(businessId, membership.role, 'FINANCE_MANAGE')))
       throw new ForbiddenException('Insufficient permissions');
 
     return this.businessesRepository.update(businessId, dto);

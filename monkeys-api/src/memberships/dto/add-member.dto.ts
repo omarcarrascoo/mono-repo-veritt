@@ -1,7 +1,8 @@
-import { IsEmail, IsIn } from 'class-validator';
+import { IsEmail, IsEnum } from 'class-validator';
+import { MembershipRole } from '@prisma/client';
 
 export class AddMemberDto {
   @IsEmail() email: string;
-  @IsIn(['OWNER', 'ADMIN', 'SUPERVISOR', 'OPERATOR', 'VERITT_STAFF'])
-  role: 'OWNER' | 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VERITT_STAFF';
+  @IsEnum(MembershipRole)
+  role: MembershipRole;
 }

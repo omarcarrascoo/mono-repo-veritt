@@ -1,6 +1,9 @@
+import type { MembershipRole } from './business.types'
+
 export type ProcessStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
 export type ProcessExecutionStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
-export type MembershipRole = 'OWNER' | 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VERITT_STAFF'
+// Fuente única del rol: business.types (re-exportado por compatibilidad).
+export type { MembershipRole }
 
 export interface ProcessStep {
   id: string

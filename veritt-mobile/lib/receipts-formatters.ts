@@ -4,12 +4,20 @@ import type { ReceiptStatus } from '@/types/receipt.types';
 // Helpers compartidos del módulo recepciones.
 
 export const RECEIPT_STATUS_LABEL: Record<ReceiptStatus, string> = {
+  DRAFT: 'Borrador',
+  PENDING_REVIEW: 'Por autorizar',
   COMPLETED: 'Completada',
   PARTIAL: 'Parcial',
   CANCELLED: 'Cancelada',
+  REJECTED: 'Rechazada',
 };
 
-export type ReceiptTone = 'completed' | 'partial' | 'cancelled';
+export type ReceiptTone =
+  | 'completed'
+  | 'partial'
+  | 'cancelled'
+  | 'pending'
+  | 'rejected';
 
 export function statusToTone(status: ReceiptStatus): ReceiptTone {
   switch (status) {
@@ -17,10 +25,20 @@ export function statusToTone(status: ReceiptStatus): ReceiptTone {
       return 'completed';
     case 'PARTIAL':
       return 'partial';
+    case 'DRAFT':
+    case 'PENDING_REVIEW':
+      return 'pending';
+    case 'REJECTED':
+      return 'rejected';
     case 'CANCELLED':
     default:
       return 'cancelled';
   }
+}
+
+/** ¿El receipt está esperando autorización de un gerente? */
+export function isReceiptPending(status: ReceiptStatus): boolean {
+  return status === 'PENDING_REVIEW' || status === 'DRAFT';
 }
 
 /** Día canónico ISO (YYYY-MM-DD) en horario local. */

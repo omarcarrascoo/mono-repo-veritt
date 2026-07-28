@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { SalesRepository } from './sales.repository';
 import { DailyChainService } from '../daily-chain/daily-chain.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -22,6 +23,7 @@ export class SalesService {
   constructor(
     private readonly salesRepository: SalesRepository,
     private readonly dailyChainService: DailyChainService,
+    private readonly permissions: PermissionService,
   ) {}
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
@@ -34,7 +36,7 @@ export class SalesService {
 
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
-    if (!['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (!(await this.permissions.can(businessId, membership.role, 'FINANCE_VIEW'))) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return membership;
@@ -42,8 +44,17 @@ export class SalesService {
 
   async create(businessId: string, userId: string, dto: CreateSaleDto) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
-    const isManager = ['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(
+    // Capacidad POS_OPERATE (R3/R4/dueño por default).
+    if (!(await this.permissions.can(businessId, membership.role, 'POS_OPERATE'))) {
+      throw new ForbiddenException(
+        'Solo el operador de POS o un gerente pueden registrar ventas',
+      );
+    }
+    // Manager (FINANCE_VIEW) puede registrar ventas a nombre de cualquier operador.
+    const isManager = await this.permissions.can(
+      businessId,
       membership.role,
+      'FINANCE_VIEW',
     );
 
     // Check if the operational day is open (FAI authorized)
@@ -51,6 +62,15 @@ export class SalesService {
     if (!dayOpen) {
       throw new BadRequestException(
         'El día operativo no está abierto. Autoriza la apertura (FAI) primero.',
+      );
+    }
+
+    // Candado C2: con la cadena activa, la caja debe declarar su saldo inicial
+    // antes de la 1ª venta. Sin cadena activa, hasCashOpening devuelve true.
+    const cashReady = await this.dailyChainService.hasCashOpening(businessId);
+    if (!cashReady) {
+      throw new BadRequestException(
+        'La caja no ha declarado su saldo inicial. Declara el saldo de apertura antes de vender.',
       );
     }
 
@@ -294,8 +314,10 @@ export class SalesService {
 
   async findAll(businessId: string, userId: string, filters: { status?: string; areaId?: string; operatorStaffId?: string; from?: string; to?: string }) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
-    const isManager = ['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(
+    const isManager = await this.permissions.can(
+      businessId,
       membership.role,
+      'FINANCE_VIEW',
     );
 
     let fromDate: Date | undefined;
@@ -333,8 +355,10 @@ export class SalesService {
 
   async findOne(businessId: string, saleId: string, userId: string) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
-    const isManager = ['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(
+    const isManager = await this.permissions.can(
+      businessId,
       membership.role,
+      'FINANCE_VIEW',
     );
 
     const sale = await this.salesRepository.findOne(saleId);

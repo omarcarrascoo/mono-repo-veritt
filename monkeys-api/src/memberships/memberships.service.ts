@@ -2,10 +2,14 @@ import { ConflictException, ForbiddenException, Injectable, NotFoundException } 
 import { MembershipsRepository } from './memberships.repository';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 @Injectable()
 export class MembershipsService {
-  constructor(private readonly membershipsRepository: MembershipsRepository) {}
+  constructor(
+    private readonly membershipsRepository: MembershipsRepository,
+    private readonly permissions: PermissionService,
+  ) {}
 
   async listMembers(businessId: string, userId: string) {
     const membership = await this.membershipsRepository.findBusinessMembership(businessId, userId);
@@ -15,7 +19,10 @@ export class MembershipsService {
 
   async addMember(businessId: string, actorUserId: string, dto: AddMemberDto) {
     const actorMembership = await this.membershipsRepository.findBusinessMembership(businessId, actorUserId);
-    if (!actorMembership || !['OWNER', 'ADMIN'].includes(actorMembership.role)) {
+    if (
+      !actorMembership ||
+      !(await this.permissions.can(businessId, actorMembership.role, 'MEMBER_ADMIN'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
@@ -35,7 +42,10 @@ export class MembershipsService {
 
   async updateMember(businessId: string, memberId: string, actorUserId: string, dto: UpdateMemberDto) {
     const actorMembership = await this.membershipsRepository.findBusinessMembership(businessId, actorUserId);
-    if (!actorMembership || !['OWNER', 'ADMIN'].includes(actorMembership.role)) {
+    if (
+      !actorMembership ||
+      !(await this.permissions.can(businessId, actorMembership.role, 'MEMBER_ADMIN'))
+    ) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return this.membershipsRepository.updateMember(memberId, dto);

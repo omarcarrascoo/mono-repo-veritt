@@ -46,6 +46,7 @@ export function buildQuickModules(
   const canSupply = permissions.canManageSupply(role);
   const canConfig = permissions.canAccessConfig(role);
   const canShifts = permissions.canSeeShifts(role);
+  const canMembers = permissions.canManageMembers(role);
 
   const list: QuickModuleItem[] = [
     {
@@ -140,6 +141,15 @@ export function buildQuickModules(
         route: `${base}/payment-methods`,
       },
     );
+  }
+
+  if (canMembers) {
+    list.push({
+      key: 'members',
+      label: 'Miembros',
+      icon: 'person-add-outline',
+      route: `${base}/members`,
+    });
   }
 
   list.push({

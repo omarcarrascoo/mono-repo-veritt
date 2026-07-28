@@ -354,6 +354,7 @@ export function buildNextMoves(
   const canPayroll = permissions.canSeePayroll(role);
   const canStaff = permissions.canManageStaff(role);
   const canSupply = permissions.canManageSupply(role);
+  const canReceive = permissions.canReceiveInventory(role);
 
   const candidates: Array<NextMoveItemData | null> = [];
 
@@ -392,14 +393,16 @@ export function buildNextMoves(
             skin: 'outline',
             route: `${base}/suppliers`,
           }
-        : {
+        : canReceive
+        ? {
             key: 'receipt-draft',
             label: 'Recepción pendiente',
             hint: 'Registra borrador para autorizar',
             icon: 'archive-outline',
             skin: 'outline',
             route: `${base}/receipts/create`,
-          },
+          }
+        : null,
     );
   } else if (dayClosed) {
     candidates.push(
@@ -459,14 +462,18 @@ export function buildNextMoves(
         skin: 'hero',
         route: `${base}/sales/create`,
       },
-      {
-        key: 'receipt',
-        label: 'Recepción de mercancía',
-        hint: canSupply ? 'Registrar llegada' : 'Crea un borrador para autorizar',
-        icon: 'archive-outline',
-        skin: 'paper',
-        route: `${base}/receipts/create`,
-      },
+      canReceive
+        ? {
+            key: 'receipt',
+            label: 'Recepción de mercancía',
+            hint: canSupply
+              ? 'Registrar llegada'
+              : 'Crea un borrador para autorizar',
+            icon: 'archive-outline',
+            skin: 'paper',
+            route: `${base}/receipts/create`,
+          }
+        : null,
       {
         key: 'shifts',
         label: 'Asistencia',

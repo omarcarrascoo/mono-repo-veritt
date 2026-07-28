@@ -323,6 +323,24 @@ export class DailyChainRepository {
     });
   }
 
+  // ── Saldo inicial de caja (C2) ──
+
+  async findCashOpening(businessId: string, operationalDate: Date) {
+    return this.prisma.dailyCashOpening.findUnique({
+      where: { businessId_operationalDate: { businessId, operationalDate } },
+    });
+  }
+
+  async createCashOpening(data: {
+    businessId: string;
+    operationalDate: Date;
+    openingBalance: number;
+    notes?: string;
+    declaredByUserId: string;
+  }) {
+    return this.prisma.dailyCashOpening.create({ data });
+  }
+
   // ── FAF (Reconciliation) ──
 
   async findReconciliation(businessId: string, operationalDate: Date) {

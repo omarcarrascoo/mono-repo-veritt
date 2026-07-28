@@ -23,6 +23,7 @@ import { formatInventoryCurrency } from '@/lib/inventory-formatters';
 import {
   calcReceiptTotal,
   dayHeaderLabel,
+  isReceiptPending,
   receiptDayKey,
 } from '@/lib/receipts-formatters';
 import type { Business } from '@/types/business.types';
@@ -60,7 +61,10 @@ export default function ReceiptsScreen() {
   const role = useBusinessStore((s) =>
     businessId ? s.getRole(businessId) : null,
   );
-  const canCreate = permissions.canManageSupply(role);
+  // R1 puede registrar recepciones (quedan en borrador para autorizar);
+  // sólo gerencia (R5/R6) autoriza y ve los pendientes como accionables.
+  const canCreate = permissions.canReceiveInventory(role);
+  const canAuthorize = permissions.canManageSupply(role);
 
   const [business, setBusiness] = useState<Business | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
@@ -104,11 +108,18 @@ export default function ReceiptsScreen() {
     let totalToday = 0;
     let countToday = 0;
     let cancelledCount = 0;
+    let pendingCount = 0;
     let valueAllTime = 0;
 
     for (const r of receipts) {
       const total = calcReceiptTotal(r.items ?? []);
-      if (r.status === 'CANCELLED') {
+      // Sólo las recepciones que sí movieron stock cuentan para el valor.
+      // Pendientes (borrador) y rechazadas no impactan inventario.
+      if (isReceiptPending(r.status)) {
+        pendingCount += 1;
+        continue;
+      }
+      if (r.status === 'CANCELLED' || r.status === 'REJECTED') {
         cancelledCount += 1;
         continue;
       }
@@ -123,15 +134,32 @@ export default function ReceiptsScreen() {
       totalToday,
       countToday,
       cancelledCount,
+      pendingCount,
       valueAllTime,
       total: receipts.length,
     };
   }, [receipts]);
 
+  // Pendientes por autorizar (candado C3) — se muestran aparte, no en el
+  // historial por día, para que un gerente los resuelva primero.
+  const pending = useMemo(
+    () =>
+      receipts
+        .filter((r) => isReceiptPending(r.status))
+        .sort(
+          (a, b) =>
+            new Date(b.receivedAt ?? 0).getTime() -
+            new Date(a.receivedAt ?? 0).getTime(),
+        ),
+    [receipts],
+  );
+
   const groups = useMemo<DayGroup[]>(() => {
     const map = new Map<string, Receipt[]>();
     for (const r of receipts) {
       if (!r.receivedAt) continue;
+      // Los pendientes viven en su propia sección, no en el historial.
+      if (isReceiptPending(r.status)) continue;
       const k = receiptDayKey(r.receivedAt);
       const list = map.get(k) ?? [];
       list.push(r);
@@ -149,7 +177,7 @@ export default function ReceiptsScreen() {
         0,
       );
       const total = sorted
-        .filter((r) => r.status !== 'CANCELLED')
+        .filter((r) => r.status !== 'CANCELLED' && r.status !== 'REJECTED')
         .reduce((acc, r) => acc + calcReceiptTotal(r.items ?? []), 0);
       const labels = dayHeaderLabel(key);
       out.push({
@@ -163,6 +191,12 @@ export default function ReceiptsScreen() {
     }
     return out.sort((a, b) => (a.key < b.key ? 1 : -1));
   }, [receipts]);
+
+  // Total de recepciones dentro del historial (excluye pendientes).
+  const historyCount = useMemo(
+    () => groups.reduce((acc, g) => acc + g.receipts.length, 0),
+    [groups],
+  );
 
   // ── Handlers ──────────────────────────────────────────────────────
 
@@ -251,6 +285,28 @@ export default function ReceiptsScreen() {
           ]}
         />
 
+        {pending.length > 0 ? (
+          <View style={{ gap: 18 }}>
+            <VrittInventorySectionHeader
+              eyebrow={
+                canAuthorize ? 'Requiere tu visto bueno' : 'En espera de gerencia'
+              }
+              title="Pendientes por autorizar"
+              trailing={`${pending.length}`}
+            />
+            <View style={{ gap: 14 }}>
+              {pending.map((r) => (
+                <VrittReceiptRow
+                  key={r.id}
+                  receipt={r}
+                  currency={currency}
+                  onPress={onOpen}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         {receipts.length === 0 ? (
           <VrittInventoryEmpty
             icon="archive-outline"
@@ -263,7 +319,7 @@ export default function ReceiptsScreen() {
             actionLabel={canCreate ? 'Registrar recepción' : undefined}
             onAction={canCreate ? goToCreate : undefined}
           />
-        ) : (
+        ) : groups.length === 0 ? null : (
           <View style={{ gap: 36 }}>
             <VrittInventorySectionHeader
               eyebrow="Historial"
@@ -272,8 +328,8 @@ export default function ReceiptsScreen() {
                   ? 'Último día con movimientos'
                   : `Últimos ${groups.length} días`
               }
-              trailing={`${receipts.length} ${
-                receipts.length === 1 ? 'recepción' : 'recepciones'
+              trailing={`${historyCount} ${
+                historyCount === 1 ? 'recepción' : 'recepciones'
               }`}
             />
 

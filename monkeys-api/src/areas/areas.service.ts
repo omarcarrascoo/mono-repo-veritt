@@ -8,10 +8,14 @@ import {
 import { AreasRepository } from './areas.repository';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { UpdateAreaDto } from './dto/update-area.dto';
+import { PermissionService } from '../common/services/permission.service';
 
 @Injectable()
 export class AreasService {
-  constructor(private readonly areasRepository: AreasRepository) {}
+  constructor(
+    private readonly areasRepository: AreasRepository,
+    private readonly permissions: PermissionService,
+  ) {}
 
   private async ensureBusinessAccess(businessId: string, userId: string) {
     const membership = await this.areasRepository.findMembership(businessId, userId);
@@ -23,7 +27,7 @@ export class AreasService {
 
   private async ensureManagementAccess(businessId: string, userId: string) {
     const membership = await this.ensureBusinessAccess(businessId, userId);
-    if (!['OWNER', 'ADMIN', 'VERITT_STAFF'].includes(membership.role)) {
+    if (!(await this.permissions.can(businessId, membership.role, 'CONFIG_MANAGE'))) {
       throw new ForbiddenException('Insufficient permissions');
     }
     return membership;
